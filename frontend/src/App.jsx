@@ -10,6 +10,10 @@ import StudentLogin from './components/StudentLogin';
 import ManagerLogin from './components/ManagerLogin';
 import AdminLogin from './components/AdminLogin';
 import AuthPortalModal from './components/AuthPortalModal';
+import WalletModal from './components/WalletModal';
+import NotificationsModal from './components/NotificationsModal';
+import StudentDashboard from './components/StudentDashboard';
+import StudentOrdersHistory from './components/StudentOrdersHistory';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { 
   GraduationCap, 
@@ -19,31 +23,159 @@ import {
   Layers, 
   ShieldCheck, 
   CheckCircle2,
-  Lock
+  Lock,
+  AlertTriangle
 } from 'lucide-react';
 
 function AppContent() {
-  const [activeTab, setActiveTab] = useState('canteens');
+  const { currentUser, logout } = useAuth();
+
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem('campusbites_auth_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u.role === 'canteen_staff') return 'kitchen';
+        if (u.role === 'admin') return 'admin';
+      }
+    } catch (e) {}
+    return 'dashboard';
+  });
+
   const [canteens, setCanteens] = useState([]);
   const [selectedCanteen, setSelectedCanteen] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [activeOrder, setActiveOrder] = useState(null);
+  
+  // Local storage persisted cart
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem('campusbites_student_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // Local storage persisted active order
+  const [activeOrder, setActiveOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('campusbites_active_order');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+  const [isWalletOpen, setIsWalletOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  
+  // Dynamic API state with real loading and error tracking
+  const [canteensLoading, setCanteensLoading] = useState(true);
+  const [canteensError, setCanteensError] = useState(null);
 
-  const { currentUser, logout } = useAuth();
+  const [walletBalance, setWalletBalance] = useState(null); // null indicates pending fetch
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletError, setWalletError] = useState(null);
 
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const [cartConflictModal, setCartConflictModal] = useState(null); // { item, delta, newCanteen }
+
+  // Sync cart to localStorage
   useEffect(() => {
-    fetchCanteens();
-  }, []);
+    try {
+      localStorage.setItem('campusbites_student_cart', JSON.stringify(cart));
+    } catch (e) {
+      console.error('Failed to persist cart:', e);
+    }
+  }, [cart]);
+
+  // Sync activeOrder to localStorage
+  useEffect(() => {
+    try {
+      if (activeOrder) {
+        localStorage.setItem('campusbites_active_order', JSON.stringify(activeOrder));
+      } else {
+        localStorage.removeItem('campusbites_active_order');
+      }
+    } catch (e) {
+      console.error('Failed to persist active order:', e);
+    }
+  }, [activeOrder]);
+
+  // Parallel dashboard data fetch on mount and user identity change
+  useEffect(() => {
+    fetchAllData();
+  }, [currentUser?.id, currentUser?.isAuthenticated]);
+
+  const fetchAllData = async () => {
+    await Promise.allSettled([
+      fetchCanteens(),
+      fetchWalletBalance(),
+      fetchUnreadNotifications()
+    ]);
+  };
 
   const fetchCanteens = async () => {
+    setCanteensLoading(true);
+    setCanteensError(null);
     try {
       const res = await fetch('http://localhost:8000/api/canteens');
+      if (!res.ok) throw new Error('Failed to retrieve canteens');
       const data = await res.json();
       setCanteens(data);
     } catch (err) {
       console.error('Failed to fetch canteens:', err);
+      setCanteensError('Unable to load canteens');
+    } finally {
+      setCanteensLoading(false);
+    }
+  };
+
+  const fetchWalletBalance = async () => {
+    if (!currentUser?.isAuthenticated || !currentUser?.id) {
+      setWalletBalance(null);
+      setWalletLoading(false);
+      return;
+    }
+    setWalletLoading(true);
+    setWalletError(null);
+    try {
+      const res = await fetch(`http://localhost:8000/api/wallet?user_id=${currentUser.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWalletBalance(parseFloat(data.balance ?? 0));
+      } else {
+        setWalletError('Unable to load balance');
+      }
+    } catch (err) {
+      console.error('Failed to fetch wallet:', err);
+      setWalletError('Network error');
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
+  const fetchUnreadNotifications = async () => {
+    if (!currentUser?.isAuthenticated || !currentUser?.id) {
+      setUnreadCount(0);
+      setNotificationsLoading(false);
+      return;
+    }
+    setNotificationsLoading(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/notifications?user_id=${currentUser.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const unread = data.filter(n => !n.is_read).length;
+        setUnreadCount(unread);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    } finally {
+      setNotificationsLoading(false);
     }
   };
 
@@ -60,6 +192,28 @@ function AppContent() {
   };
 
   const handleAddToCart = (item, delta) => {
+    // Single-canteen cart restriction check
+    if (cart.length > 0 && delta > 0) {
+      const currentCanteenId = cart[0].canteen_id;
+      const targetCanteenId = item.canteen_id || selectedCanteen?.id;
+      if (currentCanteenId && targetCanteenId && currentCanteenId !== targetCanteenId) {
+        const currentCanteenName = canteens.find(c => c.id === currentCanteenId)?.name || 'another canteen';
+        const targetCanteenName = canteens.find(c => c.id === targetCanteenId)?.name || selectedCanteen?.name || 'this canteen';
+        setCartConflictModal({
+          item,
+          delta,
+          currentCanteenName,
+          targetCanteenName,
+          targetCanteenId
+        });
+        return;
+      }
+    }
+
+    applyCartChange(item, delta);
+  };
+
+  const applyCartChange = (item, delta) => {
     setCart((prevCart) => {
       const existingIndex = prevCart.findIndex((i) => i.id === item.id);
       if (existingIndex > -1) {
@@ -72,10 +226,26 @@ function AppContent() {
         }
         return updated;
       } else if (delta > 0) {
-        return [...prevCart, { ...item, quantity: delta }];
+        const itemWithCanteen = {
+          ...item,
+          canteen_id: item.canteen_id || selectedCanteen?.id,
+          quantity: delta
+        };
+        return [...prevCart, itemWithCanteen];
       }
       return prevCart;
     });
+  };
+
+  const handleConfirmCartClear = () => {
+    if (cartConflictModal) {
+      setCart([{
+        ...cartConflictModal.item,
+        canteen_id: cartConflictModal.item.canteen_id || selectedCanteen?.id,
+        quantity: cartConflictModal.delta
+      }]);
+      setCartConflictModal(null);
+    }
   };
 
   const handleUpdateQuantity = (itemId, delta) => {
@@ -100,6 +270,8 @@ function AppContent() {
     setActiveOrder(newOrder);
     setCart([]);
     setActiveTab('tracker');
+    fetchWalletBalance();
+    fetchUnreadNotifications();
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -116,6 +288,58 @@ function AppContent() {
         cartCount={totalCartCount}
         activeOrderId={activeOrder?.id}
         onOpenPortalModal={() => setIsPortalModalOpen(true)}
+        onOpenWallet={() => setIsWalletOpen(true)}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
+        walletBalance={walletBalance}
+        walletLoading={walletLoading}
+        unreadCount={unreadCount}
+      />
+
+      {/* Cart Conflict Modal for Single Canteen Enforcement */}
+      {cartConflictModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-950/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full border border-terracotta-200 shadow-paper-elevated text-center">
+            <div className="w-12 h-12 rounded-2xl bg-terracotta-50 text-terracotta-600 flex items-center justify-center mx-auto mb-3">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-ink-900 mb-1">Replace Cart Items?</h3>
+            <p className="text-xs text-ink-600 mb-4 leading-relaxed">
+              Your cart currently contains dishes from <strong className="text-ink-900">{cartConflictModal.currentCanteenName}</strong>. 
+              Orders can only be placed with one canteen at a time.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCartConflictModal(null)}
+                className="flex-1 py-2 rounded-xl border border-oatmeal-300 text-xs font-semibold text-ink-700 hover:bg-oatmeal-100 transition-colors"
+              >
+                Keep Current Cart
+              </button>
+              <button
+                onClick={handleConfirmCartClear}
+                className="flex-1 py-2 rounded-xl bg-terracotta-500 hover:bg-terracotta-600 text-xs font-bold text-white shadow-paper transition-all"
+              >
+                Clear & Add Dish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Campus Wallet Modal */}
+      <WalletModal
+        isOpen={isWalletOpen}
+        onClose={() => setIsWalletOpen(false)}
+        onBalanceUpdated={(newBal) => setWalletBalance(newBal)}
+      />
+
+      {/* Notifications Inbox Modal */}
+      <NotificationsModal
+        isOpen={isNotificationsOpen}
+        onClose={() => {
+          setIsNotificationsOpen(false);
+          fetchUnreadNotifications();
+        }}
+        onNotificationsRead={() => setUnreadCount(0)}
       />
 
       <AuthPortalModal
@@ -128,7 +352,7 @@ function AppContent() {
         {/* --- 1. Student / Member Login Page --- */}
         {activeTab === 'login-student' && (
           <StudentLogin
-            onLoginSuccess={() => setActiveTab('canteens')}
+            onLoginSuccess={() => setActiveTab('dashboard')}
             onSwitchPortal={(portal) => setActiveTab(portal)}
           />
         )}
@@ -137,7 +361,7 @@ function AppContent() {
         {activeTab === 'login-manager' && (
           <ManagerLogin
             canteens={canteens}
-            onLoginSuccess={() => setActiveTab('dashboard')}
+            onLoginSuccess={() => setActiveTab('kitchen')}
             onSwitchPortal={(portal) => setActiveTab(portal)}
           />
         )}
@@ -260,9 +484,54 @@ function AppContent() {
           </div>
         )}
 
+        {/* --- Student Dashboard (Home) --- */}
+        {activeTab === 'dashboard' && (
+          currentUser?.role === 'canteen_staff' ? (
+            <CanteenDashboard canteens={canteens} />
+          ) : (
+            <StudentDashboard
+              canteens={canteens}
+              canteensLoading={canteensLoading}
+              canteensError={canteensError}
+              onRetryCanteens={fetchCanteens}
+              onSelectCanteen={handleSelectCanteen}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onOpenWallet={() => {
+                if (!currentUser?.isAuthenticated) {
+                  setActiveTab('login-student');
+                } else {
+                  setIsWalletOpen(true);
+                }
+              }}
+              onOpenNotifications={() => {
+                if (!currentUser?.isAuthenticated) {
+                  setActiveTab('login-student');
+                } else {
+                  setIsNotificationsOpen(true);
+                }
+              }}
+              walletBalance={walletBalance}
+              walletLoading={walletLoading}
+              walletError={walletError}
+              onRetryWallet={fetchWalletBalance}
+              unreadCount={unreadCount}
+              notificationsLoading={notificationsLoading}
+              cartCount={totalCartCount}
+              activeOrder={activeOrder}
+              onRefreshDashboard={fetchAllData}
+            />
+          )
+        )}
+
         {/* --- Canteen Browsing & Orders --- */}
         {activeTab === 'canteens' && (
-          <CanteenList canteens={canteens} onSelectCanteen={handleSelectCanteen} />
+          <CanteenList 
+            canteens={canteens}
+            canteensLoading={canteensLoading}
+            canteensError={canteensError}
+            onRetryCanteens={fetchCanteens}
+            onSelectCanteen={handleSelectCanteen} 
+          />
         )}
 
         {activeTab === 'menu' && selectedCanteen && (
@@ -273,6 +542,17 @@ function AppContent() {
             onAddToCart={handleAddToCart}
             onBack={() => setActiveTab('canteens')}
             onOpenCart={() => setActiveTab('cart')}
+          />
+        )}
+
+        {/* --- Student Orders & Tax Bill History --- */}
+        {activeTab === 'orders-history' && (
+          <StudentOrdersHistory
+            onSelectOrder={(canteen) => handleSelectCanteen(canteen)}
+            onOpenTracker={(order) => {
+              setActiveOrder(order);
+              setActiveTab('tracker');
+            }}
           />
         )}
 
@@ -288,11 +568,14 @@ function AppContent() {
         )}
 
         {activeTab === 'tracker' && (
-          <OrderTracker initialOrder={activeOrder} />
+          <OrderTracker 
+            initialOrder={activeOrder} 
+            onBackToMenu={() => setActiveTab('canteens')} 
+          />
         )}
 
-        {/* --- Protected: Staff Dashboard --- */}
-        {activeTab === 'dashboard' && (
+        {/* --- Protected: Staff Kitchen Dashboard --- */}
+        {(activeTab === 'kitchen' || (activeTab === 'dashboard' && currentUser?.role === 'canteen_staff')) && (
           canAccessStaff ? (
             <CanteenDashboard canteens={canteens} />
           ) : (

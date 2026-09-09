@@ -53,17 +53,24 @@ export default function StudentLogin({ onLoginSuccess, onSwitchPortal }) {
     }
   };
 
-  const handleDemoFill = () => {
-    setEmail('rahul.sharma@college.edu');
-    setPassword('student123');
-    setName('Rahul Sharma');
-    setCollegeId('CS2024-089');
+  const handleDemoFill = (roleType = 'student') => {
+    if (roleType === 'faculty') {
+      setEmail('ananya.sen@college.edu');
+      setPassword('faculty123');
+      setName('Prof. Ananya Sen');
+      setCollegeId('FACULTY-901');
+    } else {
+      setEmail('rahul.sharma@college.edu');
+      setPassword('student123');
+      setName('Rahul Sharma');
+      setCollegeId('CS2024-089');
+    }
     setLocalError('');
   };
 
-  const handleInstantDemo = () => {
-    quickDemoLogin('student');
-    onLoginSuccess && onLoginSuccess('student');
+  const handleInstantDemo = (roleType = 'student') => {
+    quickDemoLogin(roleType);
+    onLoginSuccess && onLoginSuccess(roleType);
   };
 
   const handleGoogleSignIn = async () => {
@@ -242,22 +249,42 @@ export default function StudentLogin({ onLoginSuccess, onSwitchPortal }) {
             <span className="text-[10px] font-bold text-ink-500 uppercase tracking-wider">
               Quick Test Credentials
             </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleDemoFill('student')}
+                className="text-[10px] font-bold text-terracotta-600 hover:underline"
+              >
+                Fill Student
+              </button>
+              <span className="text-ink-300">•</span>
+              <button
+                type="button"
+                onClick={() => handleDemoFill('faculty')}
+                className="text-[10px] font-bold text-sage-700 hover:underline"
+              >
+                Fill Faculty
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={handleDemoFill}
-              className="text-[10px] font-bold text-terracotta-600 hover:underline"
+              onClick={() => handleInstantDemo('student')}
+              className="py-1.5 px-2 bg-white border border-oatmeal-300 hover:bg-cream-50 text-ink-700 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
             >
-              Fill Form
+              <Sparkles className="w-3 h-3 text-terracotta-500" />
+              <span>Student (Rahul)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleInstantDemo('faculty')}
+              className="py-1.5 px-2 bg-white border border-oatmeal-300 hover:bg-sage-50 text-sage-800 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+            >
+              <Sparkles className="w-3 h-3 text-sage-600" />
+              <span>Faculty (Prof. Ananya)</span>
             </button>
           </div>
-          <button
-            type="button"
-            onClick={handleInstantDemo}
-            className="w-full py-1.5 px-3 bg-white border border-oatmeal-300 hover:bg-cream-50 text-ink-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-terracotta-500" />
-            <span>Instant Demo Sign In (Rahul Sharma)</span>
-          </button>
         </div>
 
         {/* Switch to Register or Login */}

@@ -13,17 +13,32 @@ import {
   GraduationCap,
   ChefHat,
   KeyRound,
-  Layers
+  Layers,
+  Wallet,
+  Bell,
+  Receipt
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Navbar({ activeTab, setActiveTab, cartCount, activeOrderId, onOpenPortalModal }) {
+export default function Navbar({ 
+  activeTab, 
+  setActiveTab, 
+  cartCount, 
+  activeOrderId, 
+  onOpenPortalModal,
+  onOpenWallet,
+  onOpenNotifications,
+  walletBalance = null,
+  walletLoading = false,
+  unreadCount = 0
+}) {
   const { currentUser, logout, switchRole, loading } = useAuth();
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showLoginMenu, setShowLoginMenu] = useState(false);
 
-  const canAccessStaff = currentUser?.isAuthenticated && (currentUser?.role === 'canteen_staff' || currentUser?.role === 'admin');
-  const canAccessAdmin = currentUser?.isAuthenticated && currentUser?.role === 'admin';
+  const isStaff = currentUser?.isAuthenticated && currentUser?.role === 'canteen_staff';
+  const isAdmin = currentUser?.isAuthenticated && currentUser?.role === 'admin';
+  const isStudentOrFaculty = !isStaff && !isAdmin;
 
   return (
     <>
@@ -33,7 +48,7 @@ export default function Navbar({ activeTab, setActiveTab, cartCount, activeOrder
           
           {/* Logo */}
           <div 
-            onClick={() => setActiveTab('canteens')}
+            onClick={() => setActiveTab(isStudentOrFaculty ? 'dashboard' : 'canteens')}
             className="flex items-center gap-2.5 cursor-pointer group"
           >
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-terracotta-500 flex items-center justify-center text-white shadow-paper group-hover:bg-terracotta-600 transition-colors">
@@ -51,18 +66,111 @@ export default function Navbar({ activeTab, setActiveTab, cartCount, activeOrder
 
           {/* Desktop Navigation Tabs */}
           <nav className="hidden sm:flex items-center gap-1.5">
-            <button
-              onClick={() => setActiveTab('canteens')}
-              className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'canteens'
-                  ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
-                  : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-              }`}
-            >
-              <Utensils className="w-3.5 h-3.5 text-sage-600" />
-              <span>Canteens</span>
-            </button>
+            {isStudentOrFaculty ? (
+              <>
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'dashboard'
+                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5 text-terracotta-600" />
+                  <span>Dashboard</span>
+                </button>
 
+                <button
+                  onClick={() => setActiveTab('canteens')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'canteens' || activeTab === 'menu'
+                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <Store className="w-3.5 h-3.5 text-sage-600" />
+                  <span>Canteens</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('orders-history')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'orders-history'
+                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5 text-ink-600" />
+                  <span>My Orders</span>
+                </button>
+              </>
+            ) : isStaff ? (
+              <>
+                <button
+                  onClick={() => setActiveTab('kitchen')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'kitchen' || activeTab === 'dashboard'
+                      ? 'bg-sage-100 text-sage-900 shadow-paper border border-sage-200'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <ChefHat className="w-3.5 h-3.5 text-sage-600" />
+                  <span>Kitchen Queue</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('canteens')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'canteens'
+                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <Store className="w-3.5 h-3.5 text-sage-600" />
+                  <span>View Canteens</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setActiveTab('admin')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin'
+                      ? 'bg-ink-800 text-white shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-terracotta-400" />
+                  <span>Admin Terminal</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('kitchen')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'kitchen' || activeTab === 'dashboard'
+                      ? 'bg-sage-100 text-sage-900 shadow-paper border border-sage-200'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <ChefHat className="w-3.5 h-3.5 text-sage-600" />
+                  <span>Kitchen Queue</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('canteens')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'canteens'
+                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <Store className="w-3.5 h-3.5 text-sage-600" />
+                  <span>Canteens</span>
+                </button>
+              </>
+            )}
+
+            {/* Live Order Indicator (if user has active order) */}
             {activeOrderId && (
               <button
                 onClick={() => setActiveTab('tracker')}
@@ -78,53 +186,35 @@ export default function Navbar({ activeTab, setActiveTab, cartCount, activeOrder
               </button>
             )}
 
-            <button
-              onClick={() => {
-                if (canAccessStaff) {
-                  setActiveTab('dashboard');
-                } else {
-                  setActiveTab('login-manager');
-                }
-              }}
-              className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'dashboard'
-                  ? 'bg-sage-100 text-sage-900 shadow-paper border border-sage-200'
-                  : canAccessStaff
-                  ? 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-                  : 'text-ink-400 hover:bg-oatmeal-100/50'
-              }`}
-            >
-              {canAccessStaff ? (
-                <ChefHat className="w-3.5 h-3.5 text-sage-600" />
-              ) : (
-                <Lock className="w-3.5 h-3.5 text-ink-400" />
-              )}
-              <span>Staff Queue</span>
-            </button>
+            {/* Wallet Button */}
+            {onOpenWallet && (
+              <button
+                onClick={onOpenWallet}
+                className="px-2.5 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 text-sage-800 bg-sage-50 hover:bg-sage-100 border border-sage-200 shadow-xs"
+                title="Campus Wallet"
+              >
+                <Wallet className="w-3.5 h-3.5 text-sage-600" />
+                <span className="font-bold">
+                  {walletLoading ? '...' : walletBalance !== null ? `₹${Number(walletBalance).toFixed(2)}` : 'Wallet'}
+                </span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                if (canAccessAdmin) {
-                  setActiveTab('admin');
-                } else {
-                  setActiveTab('login-admin');
-                }
-              }}
-              className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'admin'
-                  ? 'bg-ink-800 text-white shadow-paper'
-                  : canAccessAdmin
-                  ? 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-                  : 'text-ink-400 hover:bg-oatmeal-100/50'
-              }`}
-            >
-              {canAccessAdmin ? (
-                <Sparkles className="w-3.5 h-3.5 text-terracotta-400" />
-              ) : (
-                <Lock className="w-3.5 h-3.5 text-ink-400" />
-              )}
-              <span>Admin</span>
-            </button>
+            {/* Notifications Button */}
+            {onOpenNotifications && (
+              <button
+                onClick={onOpenNotifications}
+                className="relative p-1.5 rounded-2xl text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100 transition-all"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-terracotta-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Portals Switcher Button */}
             <button
@@ -135,9 +225,10 @@ export default function Navbar({ activeTab, setActiveTab, cartCount, activeOrder
               title="Switch Login Portals"
             >
               <Layers className="w-3.5 h-3.5 text-terracotta-500" />
-              <span>Portals</span>
+              <span className="hidden md:inline">Portals</span>
             </button>
 
+            {/* Cart Button */}
             <button
               onClick={() => setActiveTab('cart')}
               className="ml-1 relative px-3 py-1.5 rounded-2xl bg-terracotta-500 hover:bg-terracotta-600 active:scale-95 text-white font-semibold text-xs transition-all flex items-center gap-1.5 shadow-paper"
@@ -202,6 +293,64 @@ export default function Navbar({ activeTab, setActiveTab, cartCount, activeOrder
                         )}
                       </div>
                     </div>
+
+                    {/* Wallet and Notifications in Dropdown */}
+                    <div className="py-1 border-b border-oatmeal-200">
+                      {onOpenWallet && (
+                        <button
+                          onClick={() => { onOpenWallet(); setShowRoleDropdown(false); }}
+                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium text-ink-700 hover:bg-sage-50 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Wallet className="w-3.5 h-3.5 text-sage-600" />
+                            <span>Campus Wallet</span>
+                          </div>
+                          <span className="font-bold text-sage-800 text-[11px]">
+                            {walletLoading ? '...' : walletBalance !== null ? `₹${Number(walletBalance).toFixed(2)}` : '—'}
+                          </span>
+                        </button>
+                      )}
+                      {onOpenNotifications && (
+                        <button
+                          onClick={() => { onOpenNotifications(); setShowRoleDropdown(false); }}
+                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium text-ink-700 hover:bg-oatmeal-100 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Bell className="w-3.5 h-3.5 text-terracotta-600" />
+                            <span>Notifications</span>
+                          </div>
+                          {unreadCount > 0 && (
+                            <span className="bg-terracotta-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                              {unreadCount}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Customer navigation if student/faculty */}
+                    {isStudentOrFaculty && (
+                      <div className="py-1 border-b border-oatmeal-200">
+                        <button
+                          onClick={() => { setActiveTab('dashboard'); setShowRoleDropdown(false); }}
+                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                            activeTab === 'dashboard' ? 'bg-terracotta-50 text-terracotta-800 font-bold' : 'text-ink-700 hover:bg-oatmeal-100'
+                          }`}
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5 text-terracotta-600" />
+                          <span>Student Dashboard</span>
+                        </button>
+                        <button
+                          onClick={() => { setActiveTab('orders-history'); setShowRoleDropdown(false); }}
+                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                            activeTab === 'orders-history' ? 'bg-terracotta-50 text-terracotta-800 font-bold' : 'text-ink-700 hover:bg-oatmeal-100'
+                          }`}
+                        >
+                          <Receipt className="w-3.5 h-3.5 text-sage-600" />
+                          <span>My Orders & Tax Bills</span>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Dedicated Portal Navigators */}
                     <div className="py-1">
@@ -317,102 +466,163 @@ export default function Navbar({ activeTab, setActiveTab, cartCount, activeOrder
       </header>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-cream-50/95 backdrop-blur-xl border-t border-oatmeal-300 px-3 py-2 flex items-center justify-around shadow-paper-floating">
-        <button
-          onClick={() => setActiveTab('canteens')}
-          className={`flex flex-col items-center gap-1 p-1.5 min-w-[52px] rounded-xl transition-all ${
-            activeTab === 'canteens'
-              ? 'text-terracotta-600 font-bold'
-              : 'text-ink-500 hover:text-ink-900'
-          }`}
-        >
-          <Store className={`w-4 h-4 ${activeTab === 'canteens' ? 'text-terracotta-500' : 'text-ink-500'}`} />
-          <span className="text-[9px]">Canteens</span>
-        </button>
+      <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-cream-50/95 backdrop-blur-xl border-t border-oatmeal-300 px-2 py-2 flex items-center justify-around shadow-paper-floating">
+        {isStaff ? (
+          <>
+            <button
+              onClick={() => setActiveTab('kitchen')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
+                activeTab === 'kitchen' || activeTab === 'dashboard'
+                  ? 'text-sage-700 font-bold'
+                  : 'text-ink-500'
+              }`}
+            >
+              <ChefHat className="w-4 h-4 text-sage-600" />
+              <span className="text-[9px]">Kitchen</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('canteens')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
+                activeTab === 'canteens' ? 'text-terracotta-600 font-bold' : 'text-ink-500'
+              }`}
+            >
+              <Store className="w-4 h-4" />
+              <span className="text-[9px]">Canteens</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('portal-hub')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
+                activeTab === 'portal-hub' ? 'text-terracotta-600 font-bold' : 'text-ink-500'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span className="text-[9px]">Portals</span>
+            </button>
+          </>
+        ) : isAdmin ? (
+          <>
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
+                activeTab === 'admin' ? 'text-terracotta-600 font-bold' : 'text-ink-500'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-terracotta-500" />
+              <span className="text-[9px]">Admin</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('kitchen')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
+                activeTab === 'kitchen' || activeTab === 'dashboard' ? 'text-sage-700 font-bold' : 'text-ink-500'
+              }`}
+            >
+              <ChefHat className="w-4 h-4 text-sage-600" />
+              <span className="text-[9px]">Kitchen</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('canteens')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
+                activeTab === 'canteens' ? 'text-terracotta-600 font-bold' : 'text-ink-500'
+              }`}
+            >
+              <Store className="w-4 h-4" />
+              <span className="text-[9px]">Canteens</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('portal-hub')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
+                activeTab === 'portal-hub' ? 'text-terracotta-600 font-bold' : 'text-ink-500'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span className="text-[9px]">Portals</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[48px] rounded-xl transition-all ${
+                activeTab === 'dashboard'
+                  ? 'text-terracotta-600 font-bold'
+                  : 'text-ink-500 hover:text-ink-900'
+              }`}
+            >
+              <LayoutDashboard className={`w-4 h-4 ${activeTab === 'dashboard' ? 'text-terracotta-500' : 'text-ink-500'}`} />
+              <span className="text-[9px]">Home</span>
+            </button>
 
-        {activeOrderId && (
-          <button
-            onClick={() => setActiveTab('tracker')}
-            className={`flex flex-col items-center gap-1 p-1.5 min-w-[52px] rounded-xl relative transition-all ${
-              activeTab === 'tracker'
-                ? 'text-terracotta-600 font-bold'
-                : 'text-ink-500 hover:text-ink-900'
-            }`}
-          >
-            <Clock className={`w-4 h-4 ${activeTab === 'tracker' ? 'text-terracotta-500 animate-pulse' : 'text-ink-500'}`} />
-            <span className="text-[9px]">Live Order</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-terracotta-500 absolute top-1 right-3 animate-ping" />
-          </button>
-        )}
+            <button
+              onClick={() => setActiveTab('canteens')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[48px] rounded-xl transition-all ${
+                activeTab === 'canteens' || activeTab === 'menu'
+                  ? 'text-terracotta-600 font-bold'
+                  : 'text-ink-500 hover:text-ink-900'
+              }`}
+            >
+              <Store className={`w-4 h-4 ${activeTab === 'canteens' || activeTab === 'menu' ? 'text-terracotta-500' : 'text-ink-500'}`} />
+              <span className="text-[9px]">Canteens</span>
+            </button>
 
-        <button
-          onClick={() => {
-            if (canAccessStaff) setActiveTab('dashboard');
-            else setActiveTab('login-manager');
-          }}
-          className={`flex flex-col items-center gap-1 p-1.5 min-w-[52px] rounded-xl transition-all ${
-            activeTab === 'dashboard' || activeTab === 'login-manager'
-              ? 'text-sage-700 font-bold'
-              : 'text-ink-500'
-          }`}
-        >
-          {canAccessStaff ? (
-            <ChefHat className="w-4 h-4 text-sage-600" />
-          ) : (
-            <Lock className="w-4 h-4 text-ink-400" />
-          )}
-          <span className="text-[9px]">Kitchen</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('orders-history')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[48px] rounded-xl transition-all ${
+                activeTab === 'orders-history'
+                  ? 'text-terracotta-600 font-bold'
+                  : 'text-ink-500 hover:text-ink-900'
+              }`}
+            >
+              <Receipt className={`w-4 h-4 ${activeTab === 'orders-history' ? 'text-terracotta-500' : 'text-ink-500'}`} />
+              <span className="text-[9px]">Orders</span>
+            </button>
 
-        <button
-          onClick={() => {
-            if (canAccessAdmin) setActiveTab('admin');
-            else setActiveTab('login-admin');
-          }}
-          className={`flex flex-col items-center gap-1 p-1.5 min-w-[52px] rounded-xl transition-all ${
-            activeTab === 'admin' || activeTab === 'login-admin'
-              ? 'text-terracotta-600 font-bold'
-              : 'text-ink-500'
-          }`}
-        >
-          {canAccessAdmin ? (
-            <Sparkles className="w-4 h-4 text-terracotta-500" />
-          ) : (
-            <Lock className="w-4 h-4 text-ink-400" />
-          )}
-          <span className="text-[9px]">Admin</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('portal-hub')}
-          className={`flex flex-col items-center gap-1 p-1.5 min-w-[52px] rounded-xl transition-all ${
-            activeTab === 'portal-hub' || activeTab === 'login-student'
-              ? 'text-terracotta-600 font-bold'
-              : 'text-ink-500'
-          }`}
-        >
-          <Layers className="w-4 h-4 text-terracotta-500" />
-          <span className="text-[9px]">Portals</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('cart')}
-          className={`flex flex-col items-center gap-1 p-1.5 min-w-[52px] rounded-xl relative transition-all ${
-            activeTab === 'cart'
-              ? 'text-terracotta-600 font-bold'
-              : 'text-ink-500 hover:text-ink-900'
-          }`}
-        >
-          <div className="relative">
-            <ShoppingBag className={`w-4 h-4 ${activeTab === 'cart' ? 'text-terracotta-500' : 'text-ink-500'}`} />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-terracotta-500 text-white text-[9px] font-bold px-1 rounded-full min-w-[14px] text-center">
-                {cartCount}
-              </span>
+            {activeOrderId && (
+              <button
+                onClick={() => setActiveTab('tracker')}
+                className={`flex flex-col items-center gap-1 p-1.5 min-w-[48px] rounded-xl relative transition-all ${
+                  activeTab === 'tracker'
+                    ? 'text-terracotta-600 font-bold'
+                    : 'text-ink-500 hover:text-ink-900'
+                }`}
+              >
+                <Clock className={`w-4 h-4 ${activeTab === 'tracker' ? 'text-terracotta-500 animate-pulse' : 'text-ink-500'}`} />
+                <span className="text-[9px]">Live</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-terracotta-500 absolute top-1 right-2 animate-ping" />
+              </button>
             )}
-          </div>
-          <span className="text-[9px]">Cart</span>
-        </button>
+
+            {onOpenWallet && (
+              <button
+                onClick={onOpenWallet}
+                className="flex flex-col items-center gap-1 p-1.5 min-w-[48px] rounded-xl transition-all text-sage-700 hover:text-sage-900"
+              >
+                <Wallet className="w-4 h-4 text-sage-600" />
+                <span className="text-[9px] font-bold">
+                  {walletLoading ? '...' : walletBalance !== null ? `₹${Number(walletBalance).toFixed(2)}` : 'Wallet'}
+                </span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setActiveTab('cart')}
+              className={`flex flex-col items-center gap-1 p-1.5 min-w-[48px] rounded-xl relative transition-all ${
+                activeTab === 'cart'
+                  ? 'text-terracotta-600 font-bold'
+                  : 'text-ink-500 hover:text-ink-900'
+              }`}
+            >
+              <div className="relative">
+                <ShoppingBag className={`w-4 h-4 ${activeTab === 'cart' ? 'text-terracotta-500' : 'text-ink-500'}`} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-terracotta-500 text-white text-[9px] font-bold px-1 rounded-full min-w-[14px] text-center">
+                    {cartCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[9px]">Cart</span>
+            </button>
+          </>
+        )}
       </nav>
     </>
   );

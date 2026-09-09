@@ -29,10 +29,12 @@ export const AuthProvider = ({ children }) => {
       }
     }
     return {
+      id: 1,
       uid: 'demo-student-001',
       name: 'Rahul Sharma',
       email: 'rahul.sharma@college.edu',
-      role: 'student', // 'student' | 'canteen_staff' | 'admin'
+      role: 'student', // 'student' | 'faculty' | 'canteen_staff' | 'canteen_owner' | 'platform_admin'
+      userType: 'Student',
       canteenId: null,
       canteenName: null,
       photoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
@@ -44,10 +46,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
 
-  // Sync to local storage for persistence across reloads
+  // Sync to local storage for persistence across reloads (only persist authenticated users)
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && currentUser.isAuthenticated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
     }
   }, [currentUser]);
 
@@ -147,6 +151,7 @@ export const AuthProvider = ({ children }) => {
       let photoURL = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
       let collegeId = 'CS2024-' + Math.floor(100 + Math.random() * 900);
 
+      let role = 'student';
       try {
         const cred = await signInWithEmailAndPassword(auth, email, password);
         uid = cred.user.uid;
@@ -157,26 +162,58 @@ export const AuthProvider = ({ children }) => {
         if (snap.exists()) {
           const data = snap.data();
           collegeId = data.collegeId || collegeId;
+          role = data.role || role;
         }
       } catch (fbErr) {
         console.warn('Firebase signIn notice:', fbErr.code || fbErr.message);
-        if (email.toLowerCase().includes('rahul') || email.toLowerCase().includes('student')) {
-          displayName = 'Rahul Sharma';
-          collegeId = 'CS2024-089';
-        }
+      }
+
+      if (email.toLowerCase().includes('ananya') || email.toLowerCase().includes('faculty') || email.toLowerCase().includes('prof')) {
+        displayName = 'Prof. Ananya Sen';
+        collegeId = 'FACULTY-901';
+        role = 'faculty';
+      } else if (email.toLowerCase().includes('rahul') || email.toLowerCase().includes('student')) {
+        displayName = 'Rahul Sharma';
+        collegeId = 'CS2024-089';
+        role = 'student';
       }
 
       const userObj = {
+        id: role === 'faculty' ? 4 : 1,
         uid,
         name: displayName,
         email,
-        role: 'student',
+        role: role,
+        userType: role === 'faculty' ? 'Faculty' : 'Student',
         canteenId: null,
         canteenName: null,
         collegeId,
         photoURL,
         isAuthenticated: true
       };
+
+      // Sync with backend SQLite database to resolve real user.id
+      try {
+        const backendRes = await fetch('http://localhost:8000/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: displayName,
+            college_id: collegeId,
+            email: email,
+            role: role
+          })
+        });
+        if (backendRes.ok) {
+          const backendUser = await backendRes.json();
+          userObj.id = backendUser.id;
+          userObj.name = backendUser.name || userObj.name;
+          userObj.role = backendUser.role || userObj.role;
+          userObj.collegeId = backendUser.college_id || userObj.collegeId;
+        }
+      } catch (syncErr) {
+        console.warn('Backend user sync notice:', syncErr.message);
+      }
 
       setCurrentUser(userObj);
       return { success: true, user: userObj };
@@ -410,34 +447,68 @@ export const AuthProvider = ({ children }) => {
     let demoUser;
     if (role === 'canteen_staff') {
       demoUser = {
+        id: 2,
         uid: 'mgr-demo',
-        name: 'Chef Vikram',
-        email: 'manager.central@campusbites.edu',
+        name: 'Suresh Kumar',
+        email: 'suresh.staff@canteen.college.edu',
         role: 'canteen_staff',
+        userType: 'Staff',
         canteenId: extra.canteenId || 1,
-        canteenName: extra.canteenName || "Central Food Court",
-        collegeId: 'STAFF-102',
+        canteenName: extra.canteenName || "Main Food Court",
+        collegeId: 'STAFF-001',
         photoURL: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=120&q=80',
         isAuthenticated: true
       };
-    } else if (role === 'admin') {
+    } else if (role === 'admin' || role === 'platform_admin') {
       demoUser = {
+        id: 3,
         uid: 'adm-demo',
-        name: 'Prof. Ananya Sen',
-        email: 'admin.canteen@college.edu',
+        name: 'Admin User',
+        email: 'admin@campusbites.edu',
         role: 'admin',
+        userType: 'Platform Admin',
+        canteenId: null,
+        canteenName: null,
+        collegeId: 'ADMIN-001',
+        photoURL: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
+        isAuthenticated: true
+      };
+    } else if (role === 'faculty') {
+      demoUser = {
+        id: 4,
+        uid: 'fac-demo',
+        name: 'Prof. Ananya Sen',
+        email: 'ananya.sen@college.edu',
+        role: 'faculty',
+        userType: 'Faculty',
         canteenId: null,
         canteenName: null,
         collegeId: 'FACULTY-901',
-        photoURL: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
+        photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+        isAuthenticated: true
+      };
+    } else if (role === 'canteen_owner') {
+      demoUser = {
+        id: 7,
+        uid: 'owner-demo',
+        name: 'Chef Vikram',
+        email: 'vikram.owner@campusbites.edu',
+        role: 'canteen_owner',
+        userType: 'Canteen Owner',
+        canteenId: extra.canteenId || 1,
+        canteenName: extra.canteenName || "Main Food Court",
+        collegeId: 'OWNER-001',
+        photoURL: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=120&q=80',
         isAuthenticated: true
       };
     } else {
       demoUser = {
+        id: 1,
         uid: 'stu-demo',
         name: 'Rahul Sharma',
         email: 'rahul.sharma@college.edu',
         role: 'student',
+        userType: 'Student',
         canteenId: null,
         canteenName: null,
         collegeId: 'CS2024-089',
@@ -459,15 +530,18 @@ export const AuthProvider = ({ children }) => {
       // ignore
     }
     const guestUser = {
+      id: null,
       uid: 'guest-' + Date.now(),
       name: 'Guest Visitor',
       email: null,
       photoURL: null,
       role: 'student',
+      userType: 'Guest',
       canteenId: null,
       canteenName: null,
-      collegeId: 'GUEST-001',
+      collegeId: null,
       isAuthenticated: false,
+      isGuest: true
     };
     setCurrentUser(guestUser);
     localStorage.removeItem(STORAGE_KEY);
