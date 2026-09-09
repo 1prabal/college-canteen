@@ -1,7 +1,16 @@
 import React from 'react';
 import { MapPin, ArrowRight, Clock, Store, CheckCircle2, Sparkles } from 'lucide-react';
 
-export default function CanteenList({ canteens, onSelectCanteen }) {
+export default function CanteenList({ 
+  canteens = [], 
+  canteensLoading = false, 
+  canteensError = null, 
+  onRetryCanteens, 
+  onSelectCanteen 
+}) {
+  const activeCanteens = canteens.filter(c => c.is_active !== false);
+  const openCount = activeCanteens.filter(c => c.is_open === true).length;
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 sm:pb-12">
       {/* Calm Cuisine Hero Banner */}
@@ -42,13 +51,54 @@ export default function CanteenList({ canteens, onSelectCanteen }) {
           <h2 className="text-lg sm:text-xl font-bold text-ink-900">Campus Outlets</h2>
           <p className="text-ink-500 text-xs sm:text-sm">Choose a dining location to explore the menu</p>
         </div>
-        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-white text-ink-700 border border-oatmeal-300 shadow-xs">
-          {canteens.length} Outlets Open
-        </span>
+        {canteensLoading ? (
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-white text-ink-400 border border-oatmeal-300 animate-pulse">
+            Loading outlets...
+          </span>
+        ) : canteensError ? (
+          <button
+            onClick={onRetryCanteens}
+            className="text-xs font-bold px-3 py-1 rounded-full bg-terracotta-50 text-terracotta-700 border border-terracotta-200 hover:bg-terracotta-100 transition-colors"
+          >
+            Retry
+          </button>
+        ) : (
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-white text-ink-700 border border-oatmeal-300 shadow-xs">
+            {openCount} {openCount === 1 ? 'Outlet' : 'Outlets'} Open
+          </span>
+        )}
       </div>
 
       {/* Canteen Outlets Grid */}
-      {canteens.length === 0 ? (
+      {canteensLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+          {[1, 2, 3, 4, 5, 6].map(idx => (
+            <div key={idx} className="bg-white border border-oatmeal-200 rounded-3xl p-5 shadow-paper animate-pulse h-48 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-oatmeal-200" />
+                  <div className="w-16 h-5 rounded-full bg-oatmeal-200" />
+                </div>
+                <div className="h-5 bg-oatmeal-200 rounded w-3/4 mb-2" />
+                <div className="h-3 bg-oatmeal-100 rounded w-1/2" />
+              </div>
+              <div className="h-3 bg-oatmeal-200 rounded w-1/3 pt-3 border-t border-oatmeal-100" />
+            </div>
+          ))}
+        </div>
+      ) : canteensError ? (
+        <div className="text-center py-16 bg-white rounded-3xl border border-terracotta-200 shadow-paper">
+          <Store className="w-10 h-10 text-terracotta-400 mx-auto mb-2" />
+          <p className="text-ink-900 font-bold text-sm mb-1">Failed to load canteens</p>
+          <p className="text-ink-500 text-xs mb-4">{canteensError}</p>
+          <button
+            onClick={onRetryCanteens}
+            className="px-4 py-2 bg-terracotta-500 hover:bg-terracotta-600 text-white text-xs font-bold rounded-xl shadow-paper"
+          >
+            Retry Loading Outlets
+          </button>
+        </div>
+      ) : canteens.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-3xl border border-oatmeal-300 shadow-paper">
           <Store className="w-10 h-10 text-oatmeal-400 mx-auto mb-2" />
           <p className="text-ink-500 text-sm">No dining outlets found.</p>
