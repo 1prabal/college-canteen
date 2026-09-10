@@ -10,22 +10,17 @@ import {
   GraduationCap, 
   KeyRound,
   Building2,
-  Check
+  Check,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function ManagerLogin({ canteens = [], onLoginSuccess, onSwitchPortal }) {
+export default function ManagerLogin({ onLoginSuccess, onSwitchPortal, onBack }) {
   const { loginManager, loginWithGoogle, quickDemoLogin, loading, authError, setAuthError } = useAuth();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [selectedCanteenId, setSelectedCanteenId] = useState(canteens[0]?.id || 1);
+  const [email, setEmail] = useState('suresh.staff@canteen.college.edu');
+  const [password, setPassword] = useState('staff123');
   const [localError, setLocalError] = useState('');
-
-  const activeCanteen = canteens.find((c) => c.id === Number(selectedCanteenId)) || {
-    id: 1,
-    name: 'Central Food Court'
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,9 +33,7 @@ export default function ManagerLogin({ canteens = [], onLoginSuccess, onSwitchPo
     try {
       const res = await loginManager({ 
         email, 
-        password, 
-        canteenId: activeCanteen.id,
-        canteenName: activeCanteen.name 
+        password
       });
       if (res.success) {
         onLoginSuccess && onLoginSuccess('canteen_staff');
@@ -52,27 +45,37 @@ export default function ManagerLogin({ canteens = [], onLoginSuccess, onSwitchPo
     }
   };
 
-  const handleDemoFill = () => {
-    setEmail('manager.central@campusbites.edu');
-    setPassword('manager123');
-    setSelectedCanteenId(1);
+  const handleDemoFillMainFoodCourt = () => {
+    setEmail('suresh.staff@canteen.college.edu');
+    setPassword('staff123');
     setLocalError('');
   };
 
-  const handleInstantDemo = () => {
+  const handleDemoFillNescafe = () => {
+    setEmail('sunil.nescafe@canteen.college.edu');
+    setPassword('staff123');
+    setLocalError('');
+  };
+
+  const handleInstantDemoMainFoodCourt = () => {
     quickDemoLogin('canteen_staff', {
-      canteenId: activeCanteen.id,
-      canteenName: activeCanteen.name
+      canteenId: 1,
+      canteenName: 'Main Food Court'
+    });
+    onLoginSuccess && onLoginSuccess('canteen_staff');
+  };
+
+  const handleInstantDemoNescafe = () => {
+    quickDemoLogin('canteen_staff', {
+      canteenId: 4,
+      canteenName: 'NESCAFE'
     });
     onLoginSuccess && onLoginSuccess('canteen_staff');
   };
 
   const handleGoogleSignIn = async () => {
     setLocalError('');
-    const res = await loginWithGoogle('canteen_staff', {
-      canteenId: activeCanteen.id,
-      canteenName: activeCanteen.name
-    });
+    const res = await loginWithGoogle('canteen_staff');
     if (res?.success) {
       onLoginSuccess && onLoginSuccess('canteen_staff');
     }
@@ -82,6 +85,17 @@ export default function ManagerLogin({ canteens = [], onLoginSuccess, onSwitchPo
     <div className="min-h-[82vh] flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md bg-white border border-sage-200 rounded-3xl shadow-paper-elevated p-6 sm:p-8 transition-all">
         
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-900 transition-colors mb-4"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Login Types</span>
+          </button>
+        )}
+
         {/* Header Badge */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-sage-100 border border-sage-300 text-sage-800 text-xs font-bold">
@@ -116,38 +130,6 @@ export default function ManagerLogin({ canteens = [], onLoginSuccess, onSwitchPo
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-3.5">
-          {/* Canteen Outlet Assignment Selector */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-sage-800 mb-1">
-              Select Your Canteen Outlet
-            </label>
-            <div className="relative">
-              <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-sage-600" />
-              <select
-                value={selectedCanteenId}
-                onChange={(e) => setSelectedCanteenId(Number(e.target.value))}
-                className="w-full pl-10 pr-4 py-2.5 bg-sage-50/70 border border-sage-300 rounded-2xl text-xs font-semibold text-ink-900 focus:outline-none focus:border-sage-600 focus:bg-white transition-colors"
-              >
-                {canteens.length > 0 ? (
-                  canteens.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.location})
-                    </option>
-                  ))
-                ) : (
-                  <>
-                    <option value={1}>Central Food Court (Campus Core)</option>
-                    <option value={2}>South Campus Cafe (Hostel Block C)</option>
-                    <option value={3}>Green Garden Bistro (Academic Quad)</option>
-                  </>
-                )}
-              </select>
-            </div>
-            <p className="text-[10px] text-sage-600 mt-1 italic">
-              *Incoming kitchen queue will be synchronized to this outlet.
-            </p>
-          </div>
-
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-600 mb-1">
               Staff Email / ID
@@ -157,12 +139,15 @@ export default function ManagerLogin({ canteens = [], onLoginSuccess, onSwitchPo
               <input
                 type="email"
                 required
-                placeholder="manager.central@campusbites.edu"
+                placeholder="suresh.staff@canteen.college.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-3.5 py-2.5 bg-oatmeal-50 border border-oatmeal-300 rounded-2xl text-xs text-ink-900 focus:outline-none focus:border-sage-600 focus:bg-white transition-colors"
               />
             </div>
+            <p className="text-[10px] text-sage-700 mt-1">
+              *Your assigned canteen outlet is resolved automatically and securely by the server.
+            </p>
           </div>
 
           <div>
@@ -219,27 +204,38 @@ export default function ManagerLogin({ canteens = [], onLoginSuccess, onSwitchPo
         </button>
 
         {/* Quick Testing Actions */}
-        <div className="mt-5 p-3 bg-sage-50/80 border border-sage-200 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mt-5 p-3.5 bg-sage-50/80 border border-sage-200 rounded-2xl space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-sage-800 uppercase tracking-wider">
-              Demo Kitchen Credentials
+              Assigned Staff Fast Demos
             </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={handleDemoFill}
-              className="text-[10px] font-bold text-sage-700 hover:underline"
+              onClick={handleInstantDemoMainFoodCourt}
+              className="py-2 px-2.5 bg-white border border-sage-300 hover:bg-sage-100 text-sage-900 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
             >
-              Fill Credentials
+              <Sparkles className="w-3.5 h-3.5 text-sage-600 shrink-0" />
+              <div className="text-left">
+                <div>Suresh Kumar</div>
+                <div className="text-[9px] text-sage-600 font-normal">Main Food Court (#1)</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleInstantDemoNescafe}
+              className="py-2 px-2.5 bg-white border border-sage-300 hover:bg-sage-100 text-sage-900 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-sage-600 shrink-0" />
+              <div className="text-left">
+                <div>Sunil Sharma</div>
+                <div className="text-[9px] text-sage-600 font-normal">NESCAFE (#4)</div>
+              </div>
             </button>
           </div>
-          <button
-            type="button"
-            onClick={handleInstantDemo}
-            className="w-full py-1.5 px-3 bg-white border border-sage-300 hover:bg-sage-100 text-sage-900 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-sage-600" />
-            <span>Instant Demo: Chef Vikram ({activeCanteen.name})</span>
-          </button>
         </div>
 
         {/* Portal Switchers */}

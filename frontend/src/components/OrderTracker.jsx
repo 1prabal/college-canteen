@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
   Clock, CheckCircle2, ChefHat, PackageCheck, AlertCircle, 
-  Receipt, Printer, X, ShieldCheck, ArrowRight, RotateCcw 
+  Receipt, Printer, X, ShieldCheck, ArrowRight, RotateCcw,
+  AlertTriangle, Sparkles
 } from 'lucide-react';
+import { apiUrl, wsUrl } from '../config/api';
 
 export default function OrderTracker({ initialOrder }) {
   const [order, setOrder] = useState(initialOrder);
@@ -11,6 +13,13 @@ export default function OrderTracker({ initialOrder }) {
   const [billModalOpen, setBillModalOpen] = useState(false);
   const [billData, setBillData] = useState(null);
   const [billLoading, setBillLoading] = useState(false);
+
+  // Live timer tick every second for real-time countdown & delay tracking
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Refund request state
   const [refundModalOpen, setRefundModalOpen] = useState(false);
@@ -25,7 +34,7 @@ export default function OrderTracker({ initialOrder }) {
   useEffect(() => {
     if (!order?.id) return;
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/order/${order.id}`);
+    const ws = new WebSocket(wsUrl(`/ws/order/${order.id}`));
 
     ws.onopen = () => setWsStatus('connected');
     ws.onmessage = (event) => {
@@ -60,7 +69,7 @@ export default function OrderTracker({ initialOrder }) {
     if (!order?.id) return;
     setBillLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/bills/${order.id}`);
+      const res = await fetch(apiUrl(`/api/bills/${order.id}`));
       if (res.ok) {
         const data = await res.json();
         setBillData(data);
@@ -82,7 +91,7 @@ export default function OrderTracker({ initialOrder }) {
     setRefundSubmitting(true);
     setRefundNotice('');
     try {
-      const res = await fetch('http://localhost:8000/api/refunds/request', {
+      const res = await fetch(apiUrl('/api/refunds/request'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,6 +122,34 @@ export default function OrderTracker({ initialOrder }) {
         <p className="text-xs text-ink-500">Pick delicious items from a campus canteen to start your order.</p>
       </div>
     );
+  }
+
+  // Calculate live countdown & delay
+  const isCooking = order.status === 'ACCEPTED' || order.status === 'PREPARING';
+  let countdown = null;
+  if (order.estimated_ready_at && isCooking) {
+    const readyTime = new Date(order.estimated_ready_at).getTime();
+    const diffSec = Math.floor((readyTime - now) / 1000);
+    if (diffSec > 0) {
+      const m = Math.floor(diffSec / 60);
+      const s = diffSec % 60;
+      countdown = {
+        delayed: false,
+        timerText: `${m}:${s < 10 ? '0' : ''}${s}`,
+        label: 'Ready in approximately',
+        sublabel: 'Kitchen started preparation based on server acceptance.'
+      };
+    } else {
+      const delaySec = Math.abs(diffSec);
+      const m = Math.floor(delaySec / 60);
+      const s = delaySec % 60;
+      countdown = {
+        delayed: true,
+        timerText: `+${m}:${s < 10 ? '0' : ''}${s}`,
+        label: 'Preparation taking longer than expected',
+        sublabel: 'Order remains PREPARING until staff marks it READY at counter.'
+      };
+    }
   }
 
   const steps = [
@@ -156,27 +193,64 @@ export default function OrderTracker({ initialOrder }) {
         </div>
 
         {/* Preparation Time Banner */}
-        <div className="mb-6 p-4 rounded-2xl bg-oatmeal-100 border border-oatmeal-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Clock className="w-5 h-5 text-terracotta-600 animate-pulse" />
+        <div className={`mb-6 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+          countdown?.delayed 
+            ? 'bg-rose-50 border-rose-300' 
+            : order.status === 'READY'
+            ? 'bg-sage-50 border-sage-300'
+            : 'bg-oatmeal-100 border-oatmeal-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            {order.status === 'READY' ? (
+              <div className="w-10 h-10 rounded-2xl bg-sage-600 text-white flex items-center justify-center shrink-0 shadow-paper">
+                <Sparkles className="w-5 h-5 animate-bounce" />
+              </div>
+            ) : countdown?.delayed ? (
+              <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-paper animate-pulse">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-2xl bg-white border border-oatmeal-300 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 text-terracotta-600 animate-pulse" />
+              </div>
+            )}
+
             <div>
-              <div className="text-xs font-bold text-ink-900">
-                Estimated Preparation: {order.estimated_preparation_minutes || 15} min
-              </div>
-              <div className="text-[10px] text-ink-500">
-                {order.status === 'READY' 
-                  ? 'Your meal is waiting at the pickup counter!' 
-                  : order.status === 'COMPLETED'
-                  ? 'Order has been successfully collected.'
-                  : 'Live updates from kitchen staff'}
-              </div>
+              {countdown ? (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-base font-black font-mono ${countdown.delayed ? 'text-rose-700' : 'text-ink-900'}`}>
+                      {countdown.timerText}
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                      countdown.delayed ? 'bg-rose-100 text-rose-800' : 'bg-white text-ink-700 border border-oatmeal-200'
+                    }`}>
+                      {countdown.delayed ? 'Delayed' : 'Cooking'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-ink-600 mt-0.5">{countdown.sublabel}</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-xs font-bold text-ink-900">
+                    {order.status === 'READY' ? 'Order Ready for Pickup!' : `Estimated Prep: ${order.estimated_preparation_minutes || 15} min`}
+                  </div>
+                  <div className="text-[10px] text-ink-500">
+                    {order.status === 'READY' 
+                      ? 'Your meal is waiting at the pickup counter! Show your pickup pass.' 
+                      : order.status === 'COMPLETED'
+                      ? 'Order has been successfully collected.'
+                      : 'Live updates from kitchen staff'}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <button
             onClick={fetchBill}
             disabled={billLoading}
-            className="px-3 py-1.5 rounded-xl bg-white border border-oatmeal-300 hover:bg-oatmeal-50 text-ink-800 text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all"
+            className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-white border border-oatmeal-300 hover:bg-oatmeal-50 text-ink-800 text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all"
           >
             <Receipt className="w-3.5 h-3.5 text-sage-600" />
             <span>{billLoading ? 'Loading...' : 'View Bill'}</span>

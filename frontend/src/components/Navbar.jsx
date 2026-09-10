@@ -66,7 +66,33 @@ export default function Navbar({
 
           {/* Desktop Navigation Tabs */}
           <nav className="hidden sm:flex items-center gap-1.5">
-            {isStudentOrFaculty ? (
+            {isAdmin ? (
+              <>
+                <button
+                  onClick={() => setActiveTab('admin')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin'
+                      ? 'bg-ink-800 text-white shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-terracotta-400" />
+                  <span>Admin Terminal</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('canteens')}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'canteens'
+                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
+                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
+                  }`}
+                >
+                  <Store className="w-3.5 h-3.5 text-sage-600" />
+                  <span>Canteens</span>
+                </button>
+              </>
+            ) : (
               <>
                 <button
                   onClick={() => setActiveTab('dashboard')}
@@ -102,70 +128,6 @@ export default function Navbar({
                 >
                   <Receipt className="w-3.5 h-3.5 text-ink-600" />
                   <span>My Orders</span>
-                </button>
-              </>
-            ) : isStaff ? (
-              <>
-                <button
-                  onClick={() => setActiveTab('kitchen')}
-                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeTab === 'kitchen' || activeTab === 'dashboard'
-                      ? 'bg-sage-100 text-sage-900 shadow-paper border border-sage-200'
-                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-                  }`}
-                >
-                  <ChefHat className="w-3.5 h-3.5 text-sage-600" />
-                  <span>Kitchen Queue</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('canteens')}
-                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeTab === 'canteens'
-                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
-                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-                  }`}
-                >
-                  <Store className="w-3.5 h-3.5 text-sage-600" />
-                  <span>View Canteens</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setActiveTab('admin')}
-                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeTab === 'admin'
-                      ? 'bg-ink-800 text-white shadow-paper'
-                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-terracotta-400" />
-                  <span>Admin Terminal</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('kitchen')}
-                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeTab === 'kitchen' || activeTab === 'dashboard'
-                      ? 'bg-sage-100 text-sage-900 shadow-paper border border-sage-200'
-                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-                  }`}
-                >
-                  <ChefHat className="w-3.5 h-3.5 text-sage-600" />
-                  <span>Kitchen Queue</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('canteens')}
-                  className={`px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeTab === 'canteens'
-                      ? 'bg-oatmeal-200 text-ink-900 shadow-paper'
-                      : 'text-ink-600 hover:text-ink-900 hover:bg-oatmeal-100'
-                  }`}
-                >
-                  <Store className="w-3.5 h-3.5 text-sage-600" />
-                  <span>Canteens</span>
                 </button>
               </>
             )}
@@ -252,19 +214,19 @@ export default function Navbar({
                   className="flex items-center gap-2 p-1 rounded-2xl bg-white border border-oatmeal-300 shadow-paper hover:border-oatmeal-400 transition-all"
                 >
                   <img
-                    src={currentUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80'}
-                    alt={currentUser.name}
+                    src={currentUser?.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80'}
+                    alt={currentUser?.name || 'User'}
                     className="w-7 h-7 rounded-xl object-cover border border-oatmeal-200"
                   />
                   <div className="hidden sm:flex flex-col text-left pr-1">
                     <span className="text-xs font-bold text-ink-900 leading-tight">
-                      {currentUser.name.split(' ')[0]}
+                      {(currentUser?.name || 'User').split(' ')[0]}
                     </span>
                     <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                      currentUser.role === 'admin' ? 'text-terracotta-600' :
-                      currentUser.role === 'canteen_staff' ? 'text-sage-700' : 'text-ink-500'
+                      currentUser?.role === 'admin' ? 'text-terracotta-600' :
+                      currentUser?.role === 'canteen_staff' ? 'text-sage-700' : 'text-ink-500'
                     }`}>
-                      {currentUser.role === 'canteen_staff' ? 'Manager' : currentUser.role}
+                      {currentUser?.role === 'canteen_staff' ? 'Manager' : currentUser?.role || 'Member'}
                     </span>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-ink-400 mr-1" />
@@ -274,17 +236,17 @@ export default function Navbar({
                 {showRoleDropdown && (
                   <div className="absolute right-0 mt-2 w-64 bg-cream-50 border border-oatmeal-300 rounded-3xl shadow-paper-elevated p-2 z-50 animate-in fade-in zoom-in-95">
                     <div className="px-3 py-2 border-b border-oatmeal-200 mb-1">
-                      <div className="font-bold text-xs text-ink-900 truncate">{currentUser.name}</div>
-                      <div className="text-[11px] text-ink-500 truncate">{currentUser.email || 'Campus Member'}</div>
+                      <div className="font-bold text-xs text-ink-900 truncate">{currentUser?.name || 'Campus Member'}</div>
+                      <div className="text-[11px] text-ink-500 truncate">{currentUser?.email || 'Campus Member'}</div>
                       <div className="flex items-center gap-1.5 mt-1.5">
                         <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold border uppercase tracking-wider ${
-                          currentUser.role === 'admin'
+                          currentUser?.role === 'admin'
                             ? 'bg-ink-900 text-white border-ink-800'
-                            : currentUser.role === 'canteen_staff'
+                            : currentUser?.role === 'canteen_staff'
                             ? 'bg-sage-100 text-sage-800 border-sage-300'
                             : 'bg-terracotta-50 text-terracotta-700 border-terracotta-200'
                         }`}>
-                          {currentUser.role.replace('_', ' ')}
+                          {currentUser?.role ? currentUser.role.replace('_', ' ') : 'Member'}
                         </span>
                         {currentUser.canteenName && (
                           <span className="text-[10px] text-sage-700 font-medium truncate max-w-[120px]">
@@ -467,39 +429,7 @@ export default function Navbar({
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-cream-50/95 backdrop-blur-xl border-t border-oatmeal-300 px-2 py-2 flex items-center justify-around shadow-paper-floating">
-        {isStaff ? (
-          <>
-            <button
-              onClick={() => setActiveTab('kitchen')}
-              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
-                activeTab === 'kitchen' || activeTab === 'dashboard'
-                  ? 'text-sage-700 font-bold'
-                  : 'text-ink-500'
-              }`}
-            >
-              <ChefHat className="w-4 h-4 text-sage-600" />
-              <span className="text-[9px]">Kitchen</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('canteens')}
-              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
-                activeTab === 'canteens' ? 'text-terracotta-600 font-bold' : 'text-ink-500'
-              }`}
-            >
-              <Store className="w-4 h-4" />
-              <span className="text-[9px]">Canteens</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('portal-hub')}
-              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
-                activeTab === 'portal-hub' ? 'text-terracotta-600 font-bold' : 'text-ink-500'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span className="text-[9px]">Portals</span>
-            </button>
-          </>
-        ) : isAdmin ? (
+        {isAdmin ? (
           <>
             <button
               onClick={() => setActiveTab('admin')}
@@ -509,15 +439,6 @@ export default function Navbar({
             >
               <Sparkles className="w-4 h-4 text-terracotta-500" />
               <span className="text-[9px]">Admin</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('kitchen')}
-              className={`flex flex-col items-center gap-1 p-1.5 min-w-[50px] rounded-xl transition-all ${
-                activeTab === 'kitchen' || activeTab === 'dashboard' ? 'text-sage-700 font-bold' : 'text-ink-500'
-              }`}
-            >
-              <ChefHat className="w-4 h-4 text-sage-600" />
-              <span className="text-[9px]">Kitchen</span>
             </button>
             <button
               onClick={() => setActiveTab('canteens')}

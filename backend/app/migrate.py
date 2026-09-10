@@ -37,6 +37,9 @@ def safe_migrate():
             if "phone" not in cols:
                 print("[MIGRATION] Adding column users.phone")
                 cursor.execute("ALTER TABLE users ADD COLUMN phone VARCHAR;")
+            if "password_hash" not in cols:
+                print("[MIGRATION] Adding column users.password_hash")
+                cursor.execute("ALTER TABLE users ADD COLUMN password_hash VARCHAR;")
             if "is_active" not in cols:
                 print("[MIGRATION] Adding column users.is_active")
                 cursor.execute("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL;")
@@ -62,6 +65,9 @@ def safe_migrate():
         # 2. Migrate `canteens` table
         if "canteens" in existing_tables:
             cols = get_existing_columns(cursor, "canteens")
+            if "college_id" not in cols:
+                print("[MIGRATION] Adding column canteens.college_id")
+                cursor.execute("ALTER TABLE canteens ADD COLUMN college_id INTEGER;")
             if "description" not in cols:
                 print("[MIGRATION] Adding column canteens.description")
                 cursor.execute("ALTER TABLE canteens ADD COLUMN description TEXT;")
@@ -128,12 +134,24 @@ def safe_migrate():
             if "estimated_preparation_minutes" not in cols:
                 print("[MIGRATION] Adding column orders.estimated_preparation_minutes")
                 cursor.execute("ALTER TABLE orders ADD COLUMN estimated_preparation_minutes INTEGER DEFAULT 15 NOT NULL;")
+            if "accepted_at" not in cols:
+                print("[MIGRATION] Adding column orders.accepted_at")
+                cursor.execute("ALTER TABLE orders ADD COLUMN accepted_at DATETIME;")
             if "estimated_ready_at" not in cols:
                 print("[MIGRATION] Adding column orders.estimated_ready_at")
                 cursor.execute("ALTER TABLE orders ADD COLUMN estimated_ready_at DATETIME;")
+            if "ready_at" not in cols:
+                print("[MIGRATION] Adding column orders.ready_at")
+                cursor.execute("ALTER TABLE orders ADD COLUMN ready_at DATETIME;")
             if "idempotency_key" not in cols:
                 print("[MIGRATION] Adding column orders.idempotency_key")
                 cursor.execute("ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR;")
+            if "completed_at" not in cols:
+                print("[MIGRATION] Adding column orders.completed_at")
+                cursor.execute("ALTER TABLE orders ADD COLUMN completed_at DATETIME;")
+            if "inventory_restored" not in cols:
+                print("[MIGRATION] Adding column orders.inventory_restored")
+                cursor.execute("ALTER TABLE orders ADD COLUMN inventory_restored BOOLEAN DEFAULT 0 NOT NULL;")
             if "updated_at" not in cols:
                 print("[MIGRATION] Adding column orders.updated_at")
                 cursor.execute("ALTER TABLE orders ADD COLUMN updated_at DATETIME;")
@@ -176,6 +194,13 @@ def safe_migrate():
                 WHERE item_name IS NULL OR total_price = 0;
             """)
 
+        # 6. Migrate `commission_ledgers` table
+        if "commission_ledgers" in existing_tables:
+            cols = get_existing_columns(cursor, "commission_ledgers")
+            if "commission_rate" not in cols:
+                print("[MIGRATION] Adding column commission_ledgers.commission_rate")
+                cursor.execute("ALTER TABLE commission_ledgers ADD COLUMN commission_rate NUMERIC(5, 4) DEFAULT 0.05 NOT NULL;")
+
         conn.commit()
         conn.close()
 
@@ -183,9 +208,20 @@ def safe_migrate():
     Base.metadata.create_all(bind=engine)
     print("[MIGRATION] All table definitions verified and synced.")
 
-    # Post-table creation: initialize inventory & wallets for existing records if missing
+    # Post-table creation: initialize inventory, wallets & seed college for existing records if missing
     with engine.begin() as db:
-        # 1. Wallets for users
+        # 1. Seed KIET University college
+        db.execute(text("""
+            INSERT OR IGNORE INTO colleges (id, name, code, location, is_active, created_at, updated_at)
+            VALUES (1, 'KIET University', 'KIET', 'Ghaziabad, Delhi-NCR', 1, datetime('now'), datetime('now'));
+        """))
+
+        # Link any unlinked canteens to KIET University
+        db.execute(text("""
+            UPDATE canteens SET college_id = 1 WHERE college_id IS NULL;
+        """))
+
+        # 2. Wallets for users
         db.execute(text("""
             INSERT OR IGNORE INTO wallets (user_id, balance, currency, created_at, updated_at)
             SELECT id, 500.00, 'INR', datetime('now'), datetime('now')
@@ -193,7 +229,7 @@ def safe_migrate():
             WHERE id NOT IN (SELECT user_id FROM wallets);
         """))
 
-        # 2. Inventory for menu_items
+        # 3. Inventory for menu_items
         db.execute(text("""
             INSERT OR IGNORE INTO inventory (canteen_id, menu_item_id, quantity, minimum_stock, is_available, updated_at)
             SELECT canteen_id, id, 50, 5, 1, datetime('now')
@@ -201,13 +237,14 @@ def safe_migrate():
             WHERE id NOT IN (SELECT menu_item_id FROM inventory);
         """))
 
-        # 3. Default Platform Commission Rate (5%)
+        # 4. Default Platform Commission Rate (5%)
         db.execute(text("""
             INSERT OR IGNORE INTO platform_settings (key, value, description, updated_at)
             VALUES ('commission_rate', '0.05', 'Platform commission percentage (0.05 = 5%)', datetime('now'));
         """))
 
     print("[MIGRATION] Safe migration completed successfully.")
+
 
 if __name__ == "__main__":
     safe_migrate()

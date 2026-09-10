@@ -83,10 +83,34 @@ class InventoryTxType(str, enum.Enum):
     SPOILAGE = "SPOILAGE"
     MANUAL_ADJUSTMENT = "MANUAL_ADJUSTMENT"
 
+# --- Financial Ledger Transaction Types ---
+class FinancialLedgerTxType(str, enum.Enum):
+    CUSTOMER_PAYMENT = "CUSTOMER_PAYMENT"
+    PLATFORM_COMMISSION = "PLATFORM_COMMISSION"
+    PAYMENT_GATEWAY_FEE = "PAYMENT_GATEWAY_FEE"
+    CANTEEN_EARNING = "CANTEEN_EARNING"
+    REFUND = "REFUND"
+    WALLET_CREDIT = "WALLET_CREDIT"
+    WALLET_DEBIT = "WALLET_DEBIT"
+
 
 # ==============================================================================
 # Database Models
 # ==============================================================================
+
+class College(Base):
+    __tablename__ = "colleges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    code = Column(String, unique=True, index=True, nullable=False)
+    location = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    canteens = relationship("Canteen", back_populates="college")
+
 
 class User(Base):
     __tablename__ = "users"
@@ -97,6 +121,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=True)
     phone = Column(String, nullable=True)
     role = Column(SQLEnum(UserRole), default=UserRole.STUDENT, nullable=False)
+    password_hash = Column(String, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -112,6 +137,7 @@ class Canteen(Base):
     __tablename__ = "canteens"
 
     id = Column(Integer, primary_key=True, index=True)
+    college_id = Column(Integer, ForeignKey("colleges.id"), nullable=True, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     location = Column(String, nullable=False)
@@ -121,6 +147,7 @@ class Canteen(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    college = relationship("College", back_populates="canteens")
     owner = relationship("User", back_populates="owned_canteens", foreign_keys=[owner_id])
     staff_members = relationship("CanteenStaff", back_populates="canteen", cascade="all, delete-orphan")
     menu_items = relationship("MenuItem", back_populates="canteen", cascade="all, delete-orphan")
@@ -220,8 +247,12 @@ class Order(Base):
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PLACED, nullable=False, index=True)
     pickup_code = Column(String(10), nullable=False)  # 4-6 digit secure pickup pass
     estimated_preparation_minutes = Column(Integer, default=15, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
     estimated_ready_at = Column(DateTime, nullable=True)
+    ready_at = Column(DateTime, nullable=True)
     idempotency_key = Column(String, unique=True, nullable=True, index=True)
+    completed_at = Column(DateTime, nullable=True)
+    inventory_restored = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -294,6 +325,7 @@ class CommissionLedger(Base):
     payment_id = Column(Integer, ForeignKey("payments.id"), nullable=True, index=True)
     canteen_id = Column(Integer, ForeignKey("canteens.id"), nullable=False, index=True)
     gross_amount = Column(Numeric(10, 2), nullable=False)
+    commission_rate = Column(Numeric(5, 4), default=Decimal("0.05"), nullable=False)
     platform_commission = Column(Numeric(10, 2), nullable=False)
     payment_gateway_fee = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
     canteen_amount = Column(Numeric(10, 2), nullable=False)
@@ -395,3 +427,42 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="notifications")
+
+
+class FinancialLedger(Base):
+    __tablename__ = "financial_ledger"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transaction_reference = Column(String, unique=True, index=True, nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
+    payment_id = Column(Integer, ForeignKey("payments.id"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    canteen_id = Column(Integer, ForeignKey("canteens.id"), nullable=True, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    college_id = Column(Integer, ForeignKey("colleges.id"), nullable=True, index=True)
+    amount = Column(Numeric(10, 2), nullable=False)
+    transaction_type = Column(SQLEnum(FinancialLedgerTxType), nullable=False, index=True)
+    status = Column(String, default="SUCCESS", nullable=False)
+    idempotency_key = Column(String, unique=True, index=True, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    order = relationship("Order", foreign_keys=[order_id])
+    canteen = relationship("Canteen", foreign_keys=[canteen_id])
+    user = relationship("User", foreign_keys=[user_id])
+    owner = relationship("User", foreign_keys=[owner_id])
+    college = relationship("College", foreign_keys=[college_id])
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    admin_name = Column(String, nullable=False)
+    action = Column(String, nullable=False, index=True)
+    affected_object = Column(String, nullable=False)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    admin_user = relationship("User", foreign_keys=[admin_user_id])

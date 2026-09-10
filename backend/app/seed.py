@@ -420,6 +420,10 @@ def seed_db():
                 )
                 db.add(inv)
                 db.commit()
+            elif inv.quantity < 10:
+                inv.quantity = 60
+                inv.is_available = True
+                db.commit()
 
         # ----------------------------------------------------------------------
         # 5. Seed Real Canteen Menus & Inventories
@@ -482,6 +486,10 @@ def seed_db():
                         is_available=item.is_available
                     )
                     db.add(inv)
+                    db.commit()
+                elif inv.quantity < 5:
+                    inv.quantity = initial_stock
+                    inv.is_available = True
                     db.commit()
                 else:
                     if not item.is_verified:
