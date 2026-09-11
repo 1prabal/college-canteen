@@ -10,11 +10,12 @@ import {
   AlertCircle,
   Store,
   KeyRound,
-  CheckCircle2
+  CheckCircle2,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function StudentLogin({ onLoginSuccess, onSwitchPortal }) {
+export default function StudentLogin({ onLoginSuccess, onSwitchPortal, onBack }) {
   const { loginStudent, registerStudent, loginWithGoogle, quickDemoLogin, loading, authError, setAuthError } = useAuth();
   
   const [isRegister, setIsRegister] = useState(false);
@@ -85,6 +86,17 @@ export default function StudentLogin({ onLoginSuccess, onSwitchPortal }) {
     <div className="min-h-[82vh] flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md bg-white border border-oatmeal-300 rounded-3xl shadow-paper-elevated p-6 sm:p-8 transition-all">
         
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-900 transition-colors mb-4"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Login Types</span>
+          </button>
+        )}
+
         {/* Header Badge */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-terracotta-50 border border-terracotta-200 text-terracotta-700 text-xs font-bold">

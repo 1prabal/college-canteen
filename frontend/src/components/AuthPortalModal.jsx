@@ -115,7 +115,7 @@ export default function AuthPortalModal({ isOpen, onClose, onSelectPortal }) {
           <div className="p-3 bg-oatmeal-200/60 rounded-2xl flex items-center justify-between text-xs text-ink-700">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>Currently logged in as <strong>{currentUser.name}</strong> ({currentUser.role.replace('_', ' ')})</span>
+              <span>Currently logged in as <strong>{currentUser?.name || 'User'}</strong> ({currentUser?.role ? currentUser.role.replace('_', ' ') : ''})</span>
             </div>
             <button
               onClick={() => { logout(); onClose(); }}

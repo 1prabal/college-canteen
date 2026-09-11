@@ -10,11 +10,12 @@ import {
   GraduationCap, 
   Store,
   CheckCircle2,
-  Terminal
+  Terminal,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function AdminLogin({ onLoginSuccess, onSwitchPortal }) {
+export default function AdminLogin({ onLoginSuccess, onSwitchPortal, onBack }) {
   const { loginAdmin, loginWithGoogle, quickDemoLogin, loading, authError, setAuthError } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -69,6 +70,17 @@ export default function AdminLogin({ onLoginSuccess, onSwitchPortal }) {
         {/* Glow ambient decoration */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-terracotta-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-sage-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-400 hover:text-white transition-colors mb-4 relative z-10"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Login Types</span>
+          </button>
+        )}
 
         {/* Header Badge */}
         <div className="flex items-center justify-between mb-6 relative z-10">

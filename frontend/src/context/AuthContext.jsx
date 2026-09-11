@@ -23,23 +23,27 @@ export const AuthProvider = ({ children }) => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.isAuthenticated) {
+          return parsed;
+        }
       } catch (e) {
         // fallback
       }
     }
     return {
-      id: 1,
-      uid: 'demo-student-001',
-      name: 'Rahul Sharma',
-      email: 'rahul.sharma@college.edu',
-      role: 'student', // 'student' | 'faculty' | 'canteen_staff' | 'canteen_owner' | 'platform_admin'
-      userType: 'Student',
+      id: null,
+      uid: 'guest-init',
+      name: 'Guest Visitor',
+      email: null,
+      role: 'guest',
+      userType: 'Guest',
       canteenId: null,
       canteenName: null,
-      photoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
-      collegeId: 'CS2024-089',
-      isAuthenticated: true
+      photoURL: null,
+      collegeId: null,
+      isAuthenticated: false,
+      isGuest: true
     };
   });
 
@@ -55,43 +59,44 @@ export const AuthProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // Firebase auth state observer
+  // Sync staff authoritative profile from backend on mount or identity update
   useEffect(() => {
-    try {
-      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        if (firebaseUser) {
-          try {
-            // Attempt to retrieve profile from Firestore
-            const userRef = doc(db, 'users', firebaseUser.uid);
-            const userSnap = await getDoc(userRef);
-            
-            let userProfile = {};
-            if (userSnap.exists()) {
-              userProfile = userSnap.data();
+    if (currentUser?.isAuthenticated && currentUser?.role === 'canteen_staff' && currentUser?.email) {
+      const syncStaffMe = async () => {
+        try {
+          const res = await fetch('http://localhost:8000/api/staff/me', {
+            headers: {
+              'Authorization': `Bearer ${currentUser.email}`,
+              'X-User-Id': currentUser.id ? String(currentUser.id) : ''
             }
-
-            setCurrentUser((prev) => ({
-              ...prev,
-              uid: firebaseUser.uid,
-              name: firebaseUser.displayName || userProfile.name || 'Campus Member',
-              email: firebaseUser.email,
-              photoURL: firebaseUser.photoURL || prev.photoURL,
-              role: userProfile.role || prev.role || 'student',
-              canteenId: userProfile.canteenId ?? prev.canteenId,
-              canteenName: userProfile.canteenName ?? prev.canteenName,
-              collegeId: userProfile.collegeId || prev.collegeId,
-              isAuthenticated: true,
-            }));
-          } catch (err) {
-            console.warn('Firestore profile fetch notice:', err.message);
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setCurrentUser((prev) => {
+              if (
+                prev.canteenId === data.canteen?.id && 
+                prev.canteenName === data.canteen?.name &&
+                prev.id === data.user?.id
+              ) {
+                return prev;
+              }
+              return {
+                ...prev,
+                id: data.user?.id || prev.id,
+                name: data.user?.name || prev.name,
+                canteenId: data.canteen?.id,
+                canteenName: data.canteen?.name,
+                staffRole: data.staff_assignment?.role || prev.staffRole
+              };
+            });
           }
+        } catch (e) {
+          console.warn('Background staff me sync:', e);
         }
-      });
-      return () => unsubscribe();
-    } catch (e) {
-      console.warn("Firebase Auth listener initialized in offline mode");
+      };
+      syncStaffMe();
     }
-  }, []);
+  }, [currentUser?.email, currentUser?.role]);
 
   // --- Student Registration ---
   const registerStudent = async ({ email, password, name, collegeId }) => {
@@ -268,7 +273,7 @@ export const AuthProvider = ({ children }) => {
         console.warn('Firebase manager login notice:', fbErr.message);
       }
 
-      const userObj = {
+      let userObj = {
         uid,
         name: displayName,
         email,
@@ -279,6 +284,35 @@ export const AuthProvider = ({ children }) => {
         photoURL,
         isAuthenticated: true
       };
+
+      // Query authoritative staff assignment from backend GET /api/staff/me
+      try {
+        const staffRes = await fetch('http://localhost:8000/api/staff/me', {
+          headers: {
+            'Authorization': `Bearer ${email}`,
+            'X-User-Id': userObj.id ? String(userObj.id) : ''
+          }
+        });
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          if (staffData.user) {
+            userObj.id = staffData.user.id;
+            userObj.name = staffData.user.name || userObj.name;
+            userObj.email = staffData.user.email || userObj.email;
+            userObj.role = staffData.user.role || userObj.role;
+            userObj.collegeId = staffData.user.college_id || userObj.collegeId;
+          }
+          if (staffData.canteen) {
+            userObj.canteenId = staffData.canteen.id;
+            userObj.canteenName = staffData.canteen.name;
+          }
+          if (staffData.staff_assignment) {
+            userObj.staffRole = staffData.staff_assignment.role;
+          }
+        }
+      } catch (syncErr) {
+        console.warn('Backend staff authoritative sync notice:', syncErr.message);
+      }
 
       setCurrentUser(userObj);
       return { success: true, user: userObj };
@@ -446,16 +480,27 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     let demoUser;
     if (role === 'canteen_staff') {
+      const cid = Number(extra.canteenId) || 1;
+      const staffMap = {
+        1: { id: 2, name: 'Suresh Kumar', email: 'suresh.staff@canteen.college.edu', canteenName: 'Main Food Court' },
+        2: { id: 5, name: 'Ramesh Patel', email: 'ramesh.staff@canteen.college.edu', canteenName: 'South Canteen' },
+        3: { id: 6, name: 'Priya Nair', email: 'priya.staff@canteen.college.edu', canteenName: 'Tech Park Cafe' },
+        4: { id: 14, name: 'Sunil Sharma', email: 'sunil.nescafe@canteen.college.edu', canteenName: 'NESCAFE' },
+        5: { id: 15, name: 'Manoj Tiwari', email: 'manoj.hungrynites@canteen.college.edu', canteenName: 'HUNGRY NITES' },
+        6: { id: 16, name: 'Rajesh Verma', email: 'rajesh.bigtreat@canteen.college.edu', canteenName: 'BIG TREAT CAFE' },
+        7: { id: 17, name: 'Kavita Rao', email: 'kavita.healthyhut@canteen.college.edu', canteenName: 'THE HEALTHY HUT' },
+      };
+      const assigned = staffMap[cid] || staffMap[1];
       demoUser = {
-        id: 2,
-        uid: 'mgr-demo',
-        name: 'Suresh Kumar',
-        email: 'suresh.staff@canteen.college.edu',
+        id: assigned.id,
+        uid: `mgr-${assigned.id}`,
+        name: assigned.name,
+        email: assigned.email,
         role: 'canteen_staff',
         userType: 'Staff',
-        canteenId: extra.canteenId || 1,
-        canteenName: extra.canteenName || "Main Food Court",
-        collegeId: 'STAFF-001',
+        canteenId: cid,
+        canteenName: extra.canteenName || assigned.canteenName,
+        collegeId: `STAFF-${String(assigned.id).padStart(3, '0')}`,
         photoURL: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=120&q=80',
         isAuthenticated: true
       };
@@ -535,7 +580,7 @@ export const AuthProvider = ({ children }) => {
       name: 'Guest Visitor',
       email: null,
       photoURL: null,
-      role: 'student',
+      role: 'guest',
       userType: 'Guest',
       canteenId: null,
       canteenName: null,
@@ -545,6 +590,8 @@ export const AuthProvider = ({ children }) => {
     };
     setCurrentUser(guestUser);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('campusbites_student_cart');
+    localStorage.removeItem('campusbites_active_order');
   };
 
   const switchRole = (newRole) => {

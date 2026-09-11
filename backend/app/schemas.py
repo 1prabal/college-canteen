@@ -4,7 +4,8 @@ from datetime import datetime
 from decimal import Decimal
 from .models import (
     UserRole, OrderStatus, PaymentStatus, WalletTxType, 
-    WalletTxStatus, RefundStatus, NotificationType, InventoryTxType
+    WalletTxStatus, RefundStatus, NotificationType, InventoryTxType,
+    FinancialLedgerTxType
 )
 
 # ==============================================================================
@@ -36,6 +37,7 @@ class CanteenBase(BaseModel):
     location: str
     description: Optional[str] = None
     owner_id: Optional[int] = None
+    college_id: Optional[int] = None
     is_open: bool = True
     is_active: bool = True
 
@@ -202,7 +204,9 @@ class OrderOut(BaseModel):
     status: OrderStatus
     pickup_code: str
     estimated_preparation_minutes: int
+    accepted_at: Optional[datetime] = None
     estimated_ready_at: Optional[datetime] = None
+    ready_at: Optional[datetime] = None
     created_at: datetime
     canteen_name: Optional[str] = None
     user_name: Optional[str] = None
@@ -210,6 +214,21 @@ class OrderOut(BaseModel):
     status_history: List[OrderStatusHistoryOut] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ==============================================================================
+# Authentication Schemas
+# ==============================================================================
+class AuthTokenRequest(BaseModel):
+    college_id: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int = 86400
+    user: UserOut
 
 
 # ==============================================================================
@@ -387,3 +406,178 @@ class PlatformOverviewOut(BaseModel):
     pending_refunds: int
     commission_rate: float
 
+
+# ==============================================================================
+# Phase 3 Canteen Staff Schemas
+# ==============================================================================
+class OrderAcceptRequest(BaseModel):
+    estimated_preparation_minutes: int = Field(default=15, ge=1, le=180)
+    note: Optional[str] = None
+
+class OrderRejectRequest(BaseModel):
+    reason: str
+    note: Optional[str] = None
+
+class StaffMeResponse(BaseModel):
+    user: UserOut
+    canteen: Optional[CanteenOut] = None
+    staff_assignment: Optional[CanteenStaffOut] = None
+
+class DashboardStatsOut(BaseModel):
+    today_orders: int
+    pending_orders: int
+    preparing_orders: int
+    ready_orders: int
+    completed_today: int
+    today_sales: Decimal
+
+class CategoryCreate(BaseModel):
+    name: str
+
+class CategoryRename(BaseModel):
+    old_name: str
+    new_name: str
+
+class CanteenSettingsUpdate(BaseModel):
+    is_open: Optional[bool] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    default_preparation_minutes: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+# ==============================================================================
+# Phase 4 Platform Admin Schemas
+# ==============================================================================
+class CollegeBase(BaseModel):
+    name: str
+    code: str
+    location: str
+    is_active: bool = True
+
+class CollegeCreate(CollegeBase):
+    pass
+
+class CollegeOut(CollegeBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class FinancialLedgerOut(BaseModel):
+    id: int
+    transaction_reference: str
+    order_id: Optional[int] = None
+    payment_id: Optional[int] = None
+    user_id: Optional[int] = None
+    canteen_id: Optional[int] = None
+    owner_id: Optional[int] = None
+    college_id: Optional[int] = None
+    amount: Decimal
+    transaction_type: FinancialLedgerTxType
+    status: str
+    idempotency_key: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    # Enriched details
+    canteen_name: Optional[str] = None
+    user_name: Optional[str] = None
+    owner_name: Optional[str] = None
+    college_name: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class PaginatedLedgerOut(BaseModel):
+    items: List[FinancialLedgerOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+class OwnerAnalyticsOut(BaseModel):
+    owner_id: int
+    owner_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    canteen_ids: List[int] = []
+    canteen_names: List[str] = []
+    total_orders: int
+    gross_sales: Decimal
+    platform_commission: Decimal
+    payment_fees: Decimal
+    refunds: Decimal
+    net_earnings: Decimal
+
+class RevenueTimeSeriesPoint(BaseModel):
+    date: str
+    gross_sales: Decimal
+    platform_commission: Decimal
+    payment_fees: Decimal
+    net_canteen_earnings: Decimal
+    refunds: Decimal
+    order_count: int
+
+class RevenueAnalyticsOut(BaseModel):
+    interval: str  # "daily", "weekly", "monthly"
+    points: List[RevenueTimeSeriesPoint]
+    total_gross_sales: Decimal
+    total_platform_commission: Decimal
+    total_payment_fees: Decimal
+    total_net_canteen_earnings: Decimal
+    total_refunds: Decimal
+
+class UserStatusUpdate(BaseModel):
+    is_active: bool
+    reason: Optional[str] = None
+
+class CanteenStatusUpdate(BaseModel):
+    is_active: bool
+    reason: Optional[str] = None
+
+class RefundDecisionRequest(BaseModel):
+    action: str  # "APPROVE" or "REJECT"
+    notes: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+class CommissionConfigOut(BaseModel):
+    current_commission_rate: Decimal
+    effective_rate_percent: float
+    description: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+class CommissionConfigUpdate(BaseModel):
+    commission_rate: Decimal = Field(..., ge=0.0, le=1.0)
+    reason: Optional[str] = None
+
+class AuditLogOut(BaseModel):
+    id: int
+    admin_user_id: int
+    admin_name: str
+    action: str
+    affected_object: str
+    details: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class AdminOverviewOut(BaseModel):
+    total_colleges: int
+    total_users: int = 0
+    total_students: int
+    total_faculty: int
+    total_canteens: int
+    total_canteen_staff: int
+    total_orders: int
+    total_transaction_value: Decimal
+    platform_earnings: Decimal
+    total_platform_earnings: Decimal = Decimal("0.00")
+    pending_refunds: int
+    commission_rate: Decimal
+    today_orders: int
+    today_transaction_value: Decimal
+    gross_sales: Decimal
+    total_commission_collected: Decimal
+    total_payment_fees: Decimal
+    total_refunded_amount: Decimal
+    total_canteen_net_payout: Decimal

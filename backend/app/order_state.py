@@ -25,6 +25,7 @@ VALID_TRANSITIONS: Dict[OrderStatus, Set[OrderStatus]] = {
         OrderStatus.ACCEPTED,
         OrderStatus.PREPARING,  # Fast-track prep allowed
         OrderStatus.CANCELLED,
+        OrderStatus.REJECTED,
         OrderStatus.REFUND_REQUESTED,
     },
     OrderStatus.ACCEPTED: {
