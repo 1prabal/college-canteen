@@ -163,15 +163,16 @@ class TestApiOrderFlow(unittest.TestCase):
         self.assertAlmostEqual(bal_after_order, new_bal - float(item["price"]), places=2)
 
     def test_05_admin_overview_and_canteen_analytics(self):
-        overview_res = client.get("/api/admin/overview")
+        admin_headers = {"Authorization": "Bearer admin@campusbites.edu"}
+        overview_res = client.get("/api/admin/overview", headers=admin_headers)
         self.assertEqual(overview_res.status_code, 200)
         data = overview_res.json()
         self.assertGreaterEqual(data["total_canteens"], 3)
         self.assertGreaterEqual(data["total_users"], 3)
         self.assertGreaterEqual(data["total_orders"], 2)
-        self.assertGreaterEqual(data["commission_rate"], 0.0)
+        self.assertGreaterEqual(float(data["commission_rate"]), 0.0)
 
-        analytics_res = client.get("/api/admin/canteen-analytics")
+        analytics_res = client.get("/api/admin/canteen-analytics", headers=admin_headers)
         self.assertEqual(analytics_res.status_code, 200)
         c_analytics = analytics_res.json()
         self.assertGreaterEqual(len(c_analytics), 3)

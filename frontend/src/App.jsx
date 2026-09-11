@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from './components/Navbar';
+import StaffNavbar from './components/StaffNavbar';
 import CanteenList from './components/CanteenList';
 import MenuBrowser from './components/MenuBrowser';
 import CartModal from './components/CartModal';
@@ -14,7 +15,10 @@ import WalletModal from './components/WalletModal';
 import NotificationsModal from './components/NotificationsModal';
 import StudentDashboard from './components/StudentDashboard';
 import StudentOrdersHistory from './components/StudentOrdersHistory';
+import CollegeSelection from './components/CollegeSelection';
+import LoginTypeSelection from './components/LoginTypeSelection';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { apiUrl } from './config/api';
 import { 
   GraduationCap, 
   ChefHat, 
@@ -22,25 +26,98 @@ import {
   ArrowRight, 
   Layers, 
   ShieldCheck, 
-  CheckCircle2,
-  Lock,
-  AlertTriangle
+  CheckCircle2, 
+  Lock, 
+  AlertTriangle, 
+  Store,
+  Utensils
 } from 'lucide-react';
 
 function AppContent() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, loading: authLoading } = useAuth();
+
+  const isStaff = currentUser?.isAuthenticated && currentUser?.role === 'canteen_staff';
+  const isAdmin = currentUser?.isAuthenticated && (currentUser?.role === 'admin' || currentUser?.role === 'platform_admin');
 
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const saved = localStorage.getItem('campusbites_auth_user');
       if (saved) {
         const u = JSON.parse(saved);
-        if (u.role === 'canteen_staff') return 'kitchen';
-        if (u.role === 'admin') return 'admin';
+        if (u.isAuthenticated) {
+          if (u.role === 'canteen_staff') return 'kitchen';
+          if (u.role === 'admin' || u.role === 'platform_admin') return 'admin';
+          return 'dashboard';
+        }
       }
     } catch (e) {}
-    return 'dashboard';
+    return 'select-college';
   });
+
+  // Dedicated staff active section state
+  const [staffActiveSection, setStaffActiveSection] = useState('orders');
+
+  // Route Guard 1: If staff is logged in, ensure they stay on staff dispatch / kitchen console
+  useEffect(() => {
+    if (isStaff) {
+      const studentRestrictedTabs = [
+        'dashboard', 
+        'canteens', 
+        'menu', 
+        'cart', 
+        'tracker', 
+        'orders-history', 
+        'login-student',
+        'select-college',
+        'select-login',
+        'portal-hub'
+      ];
+      if (studentRestrictedTabs.includes(activeTab)) {
+        setActiveTab('kitchen');
+      }
+    }
+  }, [isStaff, activeTab]);
+
+  // Route Guard 2: Customer / Student restriction - If student/faculty tries to access staff kitchen or admin, redirect to student dashboard
+  useEffect(() => {
+    if (currentUser?.isAuthenticated && (currentUser?.role === 'student' || currentUser?.role === 'faculty')) {
+      if (activeTab === 'kitchen' || activeTab === 'admin') {
+        setActiveTab('dashboard');
+      }
+    }
+  }, [currentUser?.isAuthenticated, currentUser?.role, activeTab]);
+
+  // Route Guard 3: Unauthenticated redirect if accessing staff console directly
+  useEffect(() => {
+    if (!currentUser?.isAuthenticated) {
+      if (activeTab === 'kitchen') {
+        setActiveTab('login-manager');
+      }
+    }
+  }, [currentUser?.isAuthenticated, activeTab]);
+
+  // Logout Watcher: Reset to select-college on logout
+  const prevAuthRef = useRef(currentUser?.isAuthenticated);
+  useEffect(() => {
+    if (prevAuthRef.current && !currentUser?.isAuthenticated) {
+      setActiveTab('select-college');
+      setSelectedCanteen(null);
+      setCart([]);
+      setActiveOrder(null);
+    }
+    prevAuthRef.current = currentUser?.isAuthenticated;
+  }, [currentUser?.isAuthenticated]);
+
+  const handleLoginRedirect = (resolvedRole) => {
+    const role = resolvedRole || currentUser?.role;
+    if (role === 'canteen_staff') {
+      setActiveTab('kitchen');
+    } else if (role === 'admin' || role === 'platform_admin') {
+      setActiveTab('admin');
+    } else {
+      setActiveTab('dashboard');
+    }
+  };
 
   const [canteens, setCanteens] = useState([]);
   const [selectedCanteen, setSelectedCanteen] = useState(null);
@@ -122,7 +199,7 @@ function AppContent() {
     setCanteensLoading(true);
     setCanteensError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/canteens');
+      const res = await fetch(apiUrl('/api/canteens'));
       if (!res.ok) throw new Error('Failed to retrieve canteens');
       const data = await res.json();
       setCanteens(data);
@@ -143,7 +220,7 @@ function AppContent() {
     setWalletLoading(true);
     setWalletError(null);
     try {
-      const res = await fetch(`http://localhost:8000/api/wallet?user_id=${currentUser.id}`);
+      const res = await fetch(apiUrl(`/api/wallet?user_id=${currentUser.id}`));
       if (res.ok) {
         const data = await res.json();
         setWalletBalance(parseFloat(data.balance ?? 0));
@@ -166,7 +243,7 @@ function AppContent() {
     }
     setNotificationsLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/notifications?user_id=${currentUser.id}`);
+      const res = await fetch(apiUrl(`/api/notifications?user_id=${currentUser.id}`));
       if (res.ok) {
         const data = await res.json();
         const unread = data.filter(n => !n.is_read).length;
@@ -182,7 +259,7 @@ function AppContent() {
   const handleSelectCanteen = async (canteen) => {
     setSelectedCanteen(canteen);
     try {
-      const res = await fetch(`http://localhost:8000/api/canteens/${canteen.id}/menu`);
+      const res = await fetch(apiUrl(`/api/canteens/${canteen.id}/menu`));
       const data = await res.json();
       setMenuItems(data);
       setActiveTab('menu');
@@ -280,20 +357,105 @@ function AppContent() {
   const canAccessStaff = currentUser?.isAuthenticated && (currentUser?.role === 'canteen_staff' || currentUser?.role === 'admin');
   const canAccessAdmin = currentUser?.isAuthenticated && currentUser?.role === 'admin';
 
+  // Safe loading handling
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-cream-100 flex items-center justify-center p-4">
+        <div className="text-center animate-in fade-in">
+          <div className="w-12 h-12 rounded-2xl bg-terracotta-500 text-white flex items-center justify-center mx-auto mb-3 shadow-paper animate-pulse">
+            <Utensils className="w-6 h-6" />
+          </div>
+          <p className="text-xs font-bold text-ink-700">Connecting to Campus Portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Role-Based Layout Separation ---
+  // If the user is authenticated as canteen_staff, render the dedicated Staff UI layout.
+  // This guarantees complete isolation: NO student navbar, NO cart, NO wallet, NO outlet browsing cards.
+  if (isStaff) {
+    return (
+      <div className="min-h-screen bg-cream-100 text-ink-900 flex flex-col selection:bg-sage-600 selection:text-white pb-14 sm:pb-0">
+        <StaffNavbar
+          activeSection={staffActiveSection}
+          onSelectSection={(sec) => setStaffActiveSection(sec)}
+          canteenName={currentUser?.canteenName}
+          canteenId={currentUser?.canteenId}
+        />
+        <main className="flex-1">
+          <CanteenDashboard
+            canteens={canteens}
+            activeSection={staffActiveSection}
+            onSectionChange={(sec) => setStaffActiveSection(sec)}
+          />
+        </main>
+        <footer className="border-t border-sage-200 bg-white/70 py-4 text-center text-xs text-ink-500 backdrop-blur-xs">
+          CampusBites Kitchen Terminal &bull; {currentUser?.canteenName || 'Assigned Canteen'} &bull; Staff Console
+        </footer>
+      </div>
+    );
+  }
+
+  const isEntryFlow = !currentUser?.isAuthenticated && ['select-college', 'select-login', 'login-student', 'login-manager', 'login-admin', 'portal-hub'].includes(activeTab);
+
+  // Otherwise, render the Student / Faculty / Public layout with standard Navbar or Entry Header
   return (
     <div className="min-h-screen bg-cream-100 text-ink-900 flex flex-col selection:bg-terracotta-500 selection:text-white pb-14 sm:pb-0">
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        cartCount={totalCartCount}
-        activeOrderId={activeOrder?.id}
-        onOpenPortalModal={() => setIsPortalModalOpen(true)}
-        onOpenWallet={() => setIsWalletOpen(true)}
-        onOpenNotifications={() => setIsNotificationsOpen(true)}
-        walletBalance={walletBalance}
-        walletLoading={walletLoading}
-        unreadCount={unreadCount}
-      />
+      {isEntryFlow ? (
+        <header className="sticky top-0 z-40 bg-cream-100/95 backdrop-blur-md border-b border-oatmeal-300/80 transition-colors">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+            <div 
+              onClick={() => setActiveTab('select-college')}
+              className="flex items-center gap-2.5 cursor-pointer group"
+            >
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-terracotta-500 flex items-center justify-center text-white shadow-paper group-hover:bg-terracotta-600 transition-colors">
+                <Utensils className="w-4 h-4" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-base sm:text-lg tracking-tight text-ink-900">
+                  CampusBites
+                </span>
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-oatmeal-200 text-ink-600 border border-oatmeal-300">
+                  KIET University
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {activeTab !== 'select-college' && (
+                <button
+                  onClick={() => setActiveTab('select-college')}
+                  className="text-xs font-semibold text-ink-600 hover:text-ink-900 px-3 py-1.5 rounded-xl hover:bg-oatmeal-200 transition-colors"
+                >
+                  Change College
+                </button>
+              )}
+              {activeTab !== 'select-login' && activeTab !== 'select-college' && (
+                <button
+                  onClick={() => setActiveTab('select-login')}
+                  className="text-xs font-bold text-terracotta-600 hover:text-terracotta-700 px-3 py-1.5 rounded-xl bg-terracotta-50 hover:bg-terracotta-100 border border-terracotta-200 transition-colors"
+                >
+                  Login Types
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+      ) : (
+        <Navbar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          cartCount={totalCartCount}
+          activeOrderId={activeOrder?.id}
+          onOpenPortalModal={() => setIsPortalModalOpen(true)}
+          onOpenWallet={() => setIsWalletOpen(true)}
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+          walletBalance={walletBalance}
+          walletLoading={walletLoading}
+          unreadCount={unreadCount}
+        />
+      )}
 
       {/* Cart Conflict Modal for Single Canteen Enforcement */}
       {cartConflictModal && (
@@ -349,28 +511,50 @@ function AppContent() {
       />
 
       <main className="flex-1">
+        {/* --- Entry Flow 1: College Selection --- */}
+        {activeTab === 'select-college' && (
+          <CollegeSelection
+            onSelectCollege={() => setActiveTab('select-login')}
+          />
+        )}
+
+        {/* --- Entry Flow 2: Login Type Selection --- */}
+        {activeTab === 'select-login' && (
+          <LoginTypeSelection
+            collegeName="KIET University"
+            onSelectLoginType={(type) => {
+              if (type === 'student') setActiveTab('login-student');
+              else if (type === 'canteen') setActiveTab('login-manager');
+              else if (type === 'admin') setActiveTab('login-admin');
+            }}
+            onBack={() => setActiveTab('select-college')}
+          />
+        )}
+
         {/* --- 1. Student / Member Login Page --- */}
         {activeTab === 'login-student' && (
           <StudentLogin
-            onLoginSuccess={() => setActiveTab('dashboard')}
+            onLoginSuccess={(role) => handleLoginRedirect(role || 'student')}
             onSwitchPortal={(portal) => setActiveTab(portal)}
+            onBack={() => setActiveTab('select-login')}
           />
         )}
 
         {/* --- 2. Canteen Manager Login Page --- */}
         {activeTab === 'login-manager' && (
           <ManagerLogin
-            canteens={canteens}
-            onLoginSuccess={() => setActiveTab('kitchen')}
+            onLoginSuccess={(role) => handleLoginRedirect(role || 'canteen_staff')}
             onSwitchPortal={(portal) => setActiveTab(portal)}
+            onBack={() => setActiveTab('select-login')}
           />
         )}
 
         {/* --- 3. Campus Administrator Login Page --- */}
         {activeTab === 'login-admin' && (
           <AdminLogin
-            onLoginSuccess={() => setActiveTab('admin')}
+            onLoginSuccess={(role) => handleLoginRedirect(role || 'admin')}
             onSwitchPortal={(portal) => setActiveTab(portal)}
+            onBack={() => setActiveTab('select-login')}
           />
         )}
 
@@ -434,11 +618,11 @@ function AppContent() {
                   <ul className="text-[11px] text-ink-600 space-y-1.5 mb-6">
                     <li className="flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-sage-600" />
-                      <span>Outlet assignment selector</span>
+                      <span>Authoritative staff assignment</span>
                     </li>
                     <li className="flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-sage-600" />
-                      <span>Kitchen staff clearance check</span>
+                      <span>Kitchen dispatch terminal</span>
                     </li>
                   </ul>
                 </div>
@@ -486,47 +670,43 @@ function AppContent() {
 
         {/* --- Student Dashboard (Home) --- */}
         {activeTab === 'dashboard' && (
-          currentUser?.role === 'canteen_staff' ? (
-            <CanteenDashboard canteens={canteens} />
-          ) : (
-            <StudentDashboard
-              canteens={canteens}
-              canteensLoading={canteensLoading}
-              canteensError={canteensError}
-              onRetryCanteens={fetchCanteens}
-              onSelectCanteen={handleSelectCanteen}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-              onOpenWallet={() => {
-                if (!currentUser?.isAuthenticated) {
-                  setActiveTab('login-student');
-                } else {
-                  setIsWalletOpen(true);
-                }
-              }}
-              onOpenNotifications={() => {
-                if (!currentUser?.isAuthenticated) {
-                  setActiveTab('login-student');
-                } else {
-                  setIsNotificationsOpen(true);
-                }
-              }}
-              walletBalance={walletBalance}
-              walletLoading={walletLoading}
-              walletError={walletError}
-              onRetryWallet={fetchWalletBalance}
-              unreadCount={unreadCount}
-              notificationsLoading={notificationsLoading}
-              cartCount={totalCartCount}
-              activeOrder={activeOrder}
-              onRefreshDashboard={fetchAllData}
-            />
-          )
+          <StudentDashboard
+            canteens={canteens}
+            canteensLoading={canteensLoading}
+            canteensError={canteensError}
+            onRetryCanteens={fetchCanteens}
+            onSelectCanteen={handleSelectCanteen}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onOpenWallet={() => {
+              if (!currentUser?.isAuthenticated) {
+                setActiveTab('login-student');
+              } else {
+                setIsWalletOpen(true);
+              }
+            }}
+            onOpenNotifications={() => {
+              if (!currentUser?.isAuthenticated) {
+                setActiveTab('login-student');
+              } else {
+                setIsNotificationsOpen(true);
+              }
+            }}
+            walletBalance={walletBalance}
+            walletLoading={walletLoading}
+            walletError={walletError}
+            onRetryWallet={fetchWalletBalance}
+            unreadCount={unreadCount}
+            notificationsLoading={notificationsLoading}
+            cartCount={totalCartCount}
+            activeOrder={activeOrder}
+            onRefreshDashboard={fetchAllData}
+          />
         )}
 
         {/* --- Canteen Browsing & Orders --- */}
         {activeTab === 'canteens' && (
           <CanteenList 
-            canteens={canteens}
+            canteens={canteens} 
             canteensLoading={canteensLoading}
             canteensError={canteensError}
             onRetryCanteens={fetchCanteens}
@@ -572,38 +752,6 @@ function AppContent() {
             initialOrder={activeOrder} 
             onBackToMenu={() => setActiveTab('canteens')} 
           />
-        )}
-
-        {/* --- Protected: Staff Kitchen Dashboard --- */}
-        {(activeTab === 'kitchen' || (activeTab === 'dashboard' && currentUser?.role === 'canteen_staff')) && (
-          canAccessStaff ? (
-            <CanteenDashboard canteens={canteens} />
-          ) : (
-            <div className="max-w-md mx-auto my-16 p-8 bg-white border border-sage-300 rounded-3xl text-center shadow-paper">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-sage-50 text-sage-600 flex items-center justify-center">
-                <ChefHat className="w-6 h-6" />
-              </div>
-              <h2 className="text-base font-bold text-ink-900 mb-2">Staff Authorization Required</h2>
-              <p className="text-xs text-ink-500 mb-6">
-                You must be authenticated as a Canteen Manager or Staff to view live preparation queues.
-              </p>
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => setActiveTab('login-manager')}
-                  className="w-full py-2.5 bg-sage-600 hover:bg-sage-700 text-white rounded-2xl text-xs font-bold shadow-paper flex items-center justify-center gap-2"
-                >
-                  <ChefHat className="w-4 h-4" />
-                  <span>Go to Canteen Manager Login</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('canteens')}
-                  className="text-xs text-ink-500 hover:text-ink-800 py-1"
-                >
-                  Return to Student Menu
-                </button>
-              </div>
-            </div>
-          )
         )}
 
         {/* --- Protected: Admin Panel --- */}
